@@ -74,7 +74,7 @@ Tests use ephemeral fixture keys and mocked RPC responses; they do not send fund
 - Associated Token Account program: `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`.
 - Memo program: `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`.
 - Escrow address: read from the actual configured server wallet and shown on the home page with an explorer link.
-- Custom Anchor program: `lockrun_escrow`, ID `DNCsEVz5mRUwJTKpXE1z478PSxKSrRVVW2GMAr3ByDAj` (source in `programs/lockrun_escrow`, branch `anchor-escrow`). Deployed to Devnet: **not yet** (see below). Challenges use it only when the server runs with `ESCROW_MODE=program`; all others keep the server-held escrow.
+- Custom Anchor program: `lockrun_escrow`, ID `DNCsEVz5mRUwJTKpXE1z478PSxKSrRVVW2GMAr3ByDAj` (source in `programs/lockrun_escrow`, branch `anchor-escrow`). Deployed to Solana Devnet ([explorer](https://explorer.solana.com/address/DNCsEVz5mRUwJTKpXE1z478PSxKSrRVVW2GMAr3ByDAj?cluster=devnet)); the on-chain binary was verified byte-for-byte against the local build. Upgrade authority: `3tCjQZWw3vqJ4pWn273N9iZSRFKVa8YsyF9EG66MihfA` (a development wallet). Challenges use it only when the server runs with `ESCROW_MODE=program`; all others keep the server-held escrow.
 
 ## How we use Solana
 
@@ -99,7 +99,6 @@ Tests: `cargo test -p lockrun_escrow --lib` (math, including the structure docum
 Build notes: `anchor build -- --tools-version v1.51` (the lockfile pins crates that predate Rust edition 2024); generate the IDL with `anchor idl build -o target/idl/lockrun_escrow.json`.
 
 ### Not done yet
-- **Devnet deployment** (the ID above is reserved; deploying needs ~3 devnet SOL and sets an upgrade authority).
 - **QuickNode Streams** webhook (the program emits `RoomCreated`, `Joined`, `SponsorFunded`, `Finalized`, `Claimed`, `SponsorReturned`, `FeeClaimed` events for it).
 - A browser UI button for the timeout refund (the instruction exists; today a refund can be cranked by anyone with a script).
 - Joins don't yet read the room's stake from the chain in the browser; the program enforces the stake, but the displayed amount comes from the server.
