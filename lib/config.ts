@@ -79,7 +79,6 @@ export const sponsorLogoUrl = (challengeId: string, index: number) => `/api/spon
 export const PARTNERS = [
   { name: "Solana", role: "Escrow, payouts and proof stamps", logo: "/partners/solana.svg" },
   { name: "USDC", role: "Deposits and payouts in digital dollars", logo: "/partners/usdc.svg" },
-  { name: "ElevenLabs", role: "Voice coach while you run", logo: "/partners/elevenlabs.svg" },
   { name: "Strava", role: "Import runs as proof", logo: "/partners/strava.svg" },
 ];
 export const SPONSOR_BONUSES = [10, 25, 50, 100];

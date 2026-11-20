@@ -22,8 +22,6 @@ export default function ChallengePage() {
   const [err, setErr] = useState("");
   const [demo, setDemo] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [toast, setToast] = useState<{ big: string; line: string } | null>(null);
-  const announcedPayout = useRef(false);
   const [viewRun, setViewRun] = useState<{ run: Run; name: string } | null>(null);
 
   useEffect(() => {
@@ -54,24 +52,6 @@ export default function ChallengePage() {
     };
   }, [load]);
 
-  // Announce my payout once the challenge is paid out.
-  useEffect(() => {
-    if (!c || !me || c.status !== "settled" || announcedPayout.current) return;
-    const mine = c.participants.find((p) => p.address === me.address);
-    if (!mine) return;
-    announcedPayout.current = true;
-    if ((mine.payout || 0) > 0) {
-      const bonus = Math.round(((mine.payout || 0) - c.deposit) * 100) / 100;
-      setToast({ big: `+${money(mine.payout || 0)}`, line: bonus > 0 ? `Your ${money(c.deposit)} back + ${money(bonus)} from the quitters` : "Your deposit is back" });
-      speak(
-        bonus > 0
-          ? `You did it! You got your ${c.deposit} dollars back, plus ${bonus} dollars from the people who quit.`
-          : `Your ${c.deposit} dollars are back in your account.`
-      );
-      setTimeout(() => setToast(null), 5000);
-    }
-  }, [c, me]);
-
   async function act(action: "join" | "settle") {
     if (!me) return;
     setBusy(action);
@@ -86,6 +66,7 @@ export default function ChallengePage() {
       if (!r.ok) throw new Error(d.error || "Something went wrong");
       setC(d.challenge);
       if (action === "join") speak(`You're in, ${me.name}! Your deposit is locked. Now go run.`);
+      if (action === "settle") window.dispatchEvent(new Event("lockrun:refresh")); // shows the Congratulations pop-up right away
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -353,15 +334,7 @@ export default function ChallengePage() {
           </div>
         </div>
       )}
-      {toast && (
-        <div className="toast" onClick={() => setToast(null)}>
-          <div className="toast-card">
-            <div className="toast-big">{toast.big}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, marginTop: 10 }}>{toast.line}</div>
-            <Link href="/earnings" className="btn primary block" style={{ marginTop: "1rem" }}>See my earnings</Link>
-          </div>
-        </div>
-      )}
+
     </main>
     </AppShell>
   );

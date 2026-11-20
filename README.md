@@ -117,6 +117,10 @@ and 5 minutes to 6 months (pick Min / Hour / Day / Week / Month, then the number
 `/earnings` shows each runner's **balance** (their USDC, read live from Solana), what's been **paid out**, sponsor
 bonuses earned (with the sponsor's logo), money **locked in live challenges**, and every payout with its receipt.
 
+**Congratulations pop-up:** when a challenge pays out, the runner sees a full-screen "Congratulations, you earned $X"
+card on whatever page they're on, with confetti, a breakdown (deposit back, quitters' share, sponsor bonus with the
+sponsor's logo), "Paid out on Solana" with the receipt, and a voice announcement. It shows once per challenge.
+
 **Cash out:** runners can send their USDC to any Solana wallet (e.g. Phantom). The server builds the transfer and signs
 only as the **fee payer** (so runners need no SOL); the runner's browser adds its own signature, so only the runner
 can move their money. The server only submits transactions it built (fee payer + token/memo instructions, valid

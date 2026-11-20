@@ -2,8 +2,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { explorerAddress, money } from "@/lib/config";
-import { useMe } from "@/lib/client";
+import { Challenge, explorerAddress, isFinisher, money } from "@/lib/config";
+import { speak, useMe } from "@/lib/client";
+import Celebration, { Win } from "./Celebration";
+import { PartnerLogo } from "./Logos";
+
+const CELEBRATED = "lockrun.celebrated"; // challenge ids we've already congratulated this runner for
+
+function readCelebrated(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(CELEBRATED) || "[]");
+  } catch {
+    return [];
+  }
+}
 
 type Escrow = { address: string | null; balance: number | null };
 
@@ -17,23 +29,55 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const [escrow, setEscrow] = useState<Escrow>({ address: null, balance: null });
   const [hash, setHash] = useState("");
+  const [win, setWin] = useState<Win | null>(null);
 
   useEffect(() => {
     let stop = false;
+    let timer: ReturnType<typeof setTimeout>;
     async function load() {
+      clearTimeout(timer);
       try {
         const d = await (await fetch("/api/challenges", { cache: "no-store" })).json();
         setEscrow(d.escrow);
+        checkForPayout(d.challenges || []);
       } catch {}
-      if (!stop) setTimeout(load, 10000);
+      if (!stop) timer = setTimeout(load, 8000);
+    }
+    // When this runner gets paid (on any page), show the Congratulations pop-up once per challenge.
+    function checkForPayout(list: Challenge[]) {
+      const meRaw = localStorage.getItem("lockrun.me");
+      if (!meRaw) return;
+      const address = JSON.parse(meRaw).address as string;
+      const seen = readCelebrated();
+      for (const c of list) {
+        if (c.status !== "settled" || seen.includes(c.id)) continue;
+        if (c.settledAt && Date.now() - c.settledAt > 7 * 86400_000) continue; // only recent payouts
+        const p = c.participants.find((x) => x.address === address);
+        if (!p) continue;
+        const finishers = c.participants.filter((x) => isFinisher(c, x)).length;
+        localStorage.setItem(CELEBRATED, JSON.stringify([...seen, c.id]));
+        if ((p.payout || 0) <= 0) return; // didn't finish: no pop-up
+        const refund = finishers === 0;
+        setWin({ c, payout: p.payout || 0, paySig: p.paySig, refund });
+        speak(
+          refund
+            ? `Your ${c.deposit} dollars are back in your account.`
+            : `Congratulations! You earned ${p.payout} dollars for finishing ${c.title}.`
+        );
+        return;
+      }
     }
     load();
+    const refresh = () => load();
+    window.addEventListener("lockrun:refresh", refresh);
     const onHash = () => setHash(window.location.hash);
     onHash();
     window.addEventListener("hashchange", onHash);
     return () => {
       stop = true;
+      clearTimeout(timer);
       window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("lockrun:refresh", refresh);
     };
   }, []);
 
@@ -70,6 +114,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </a>
           )}
         </div>
+        <div className="side-built">
+          <PartnerLogo src="/partners/solana.svg" name="Solana" className="side-built-logo" />
+          <div className="small">Built on <b>Solana</b></div>
+          <div className="muted small">Every deposit, payout and run proof is recorded on-chain.</div>
+        </div>
         <div className="side-foot">
           {me && (
             <div className="side-me">
@@ -94,6 +143,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {children}
+
+        {win && me && <Celebration win={win} name={me.name} onClose={() => setWin(null)} />}
 
         {/* ---------- Phone version: bottom tab bar ---------- */}
         <nav className="tabbar">
