@@ -9,6 +9,8 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
@@ -84,6 +86,51 @@ export async function stampProof(memo: string) {
   );
   tx.feePayer = payer.publicKey;
   return sendAndConfirmTransaction(connection, tx, [payer], { commitment: "confirmed" });
+}
+
+/** A runner's own USDC balance (their in-browser wallet), read from Solana. */
+export async function usdcBalance(owner: string): Promise<number> {
+  try {
+    const bal = await connection.getTokenAccountBalance(usdcAccount(new PublicKey(owner)));
+    return Number(bal.value.uiAmount || 0);
+  } catch {
+    return 0; // no USDC account yet
+  }
+}
+
+/**
+ * Cash out, step 1: the server builds a USDC transfer from the runner's wallet to any Solana address,
+ * with the sponsor as fee payer (so runners never need SOL), and signs it as fee payer only.
+ * The runner's browser adds its own signature; nobody else can move the runner's money.
+ */
+export async function prepareWithdraw(from: string, to: string, amountUsd: number) {
+  const payer = sponsor();
+  const fromKey = new PublicKey(from);
+  const toKey = new PublicKey(to);
+  const toAta = usdcAccount(toKey);
+  const raw = BigInt(Math.round(amountUsd * 10 ** USDC_DECIMALS));
+  const tx = new Transaction().add(
+    createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, toAta, toKey, mint),
+    createTransferCheckedInstruction(usdcAccount(fromKey), mint, toAta, fromKey, raw, USDC_DECIMALS),
+    new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from("LockRun|cashout", "utf8") })
+  );
+  tx.feePayer = payer.publicKey;
+  tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+  tx.partialSign(payer);
+  return tx.serialize({ requireAllSignatures: false }).toString("base64");
+}
+
+/** Cash out, step 2: submit the transaction once the runner's browser has signed it. */
+export async function submitWithdraw(base64Tx: string) {
+  const tx = Transaction.from(Buffer.from(base64Tx, "base64"));
+  const payer = sponsor().publicKey;
+  // Only accept transactions this server built: sponsor pays fees, and only token / account / memo instructions.
+  const allowed = new Set([TOKEN_PROGRAM_ID.toBase58(), ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(), MEMO_PROGRAM_ID]);
+  if (!tx.feePayer?.equals(payer) || !tx.instructions.every((ix) => allowed.has(ix.programId.toBase58())) || !tx.verifySignatures())
+    throw new Error("That transaction wasn't prepared by Lock&Run.");
+  const sig = await connection.sendRawTransaction(tx.serialize());
+  await connection.confirmTransaction(sig, "confirmed");
+  return sig;
 }
 
 export async function escrowBalance(): Promise<number | null> {

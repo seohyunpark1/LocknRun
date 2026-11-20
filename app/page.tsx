@@ -5,7 +5,8 @@ import Link from "next/link";
 import NameGate from "@/components/NameGate";
 import Dial from "@/components/Dial";
 import AppShell from "@/components/AppShell";
-import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
+import { PartnerLogo, SponsorMark } from "@/components/Logos";
+import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
@@ -173,10 +174,13 @@ export default function Home() {
       <section className="partners" aria-label="Powered by">
         <div className="muted small">Powered by</div>
         <div className="partner-row">
-          <div className="partner"><b>Solana</b><span>Escrow, payouts and proof stamps</span></div>
-          <div className="partner"><b>USDC</b><span>Deposits and payouts in digital dollars</span></div>
-          <div className="partner"><b>ElevenLabs</b><span>Voice coach while you run</span></div>
-          <div className="partner"><b>Strava</b><span>Import runs as proof</span></div>
+          {PARTNERS.map((pt) => (
+            <div className="partner" key={pt.name}>
+              <PartnerLogo src={pt.logo} name={pt.name} />
+              <b>{pt.name}</b>
+              <span>{pt.role}</span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -208,6 +212,9 @@ function ChallengeCard({ c, now, meAddr }: { c: Challenge; now: number; meAddr?:
       <div>
         {bonusOf(c) > 0 && (
           <div className="sponsor-badge">
+            {c.sponsors!.map((s, i) => (
+              <SponsorMark key={i} c={c} index={i} s={s} size="sm" />
+            ))}
             +{money(bonusOf(c))} bonus · Sponsored by {c.sponsors!.map((x) => x.name).join(", ")}
           </div>
         )}

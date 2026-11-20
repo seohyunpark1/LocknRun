@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import crypto from "node:crypto";
-import { MAX_PACE_SEC_PER_KM, MAX_PHOTO_BYTES, MAX_SPONSORS, MIN_PACE_SEC_PER_KM, Run, SPONSOR_BONUSES, clean } from "@/lib/config";
+import { MAX_LOGO_BYTES, MAX_PACE_SEC_PER_KM, MAX_PHOTO_BYTES, MAX_SPONSORS, MIN_PACE_SEC_PER_KM, Run, SPONSOR_BONUSES, clean } from "@/lib/config";
 import { lockDeposit, lockSponsorBonus, payFromEscrow, refundSponsorBonus, stampProof } from "@/lib/solana-server";
 import { computePayouts } from "@/lib/settle";
-import { acquireLock, getChallenge, mutate, newId, releaseLock, savePhoto } from "@/lib/store";
+import { acquireLock, getChallenge, kvSet, mutate, newId, releaseLock, savePhoto } from "@/lib/store";
 import { StravaRun, getRun, stravaEnabled } from "@/lib/strava";
 
 export const runtime = "nodejs";
@@ -38,7 +38,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
  *   run    { address, km, sec, photo } -> log a GPS run with a photo proof
  *   strava { address, activityId }      -> import a run from Strava (verified with Strava's API)
  *   (a run counts if distance >= goal and the pace is human; its proof is stamped on Solana)
- *   sponsor { name, amount, url? }      -> a brand adds a bonus to the pot (locked in escrow)
+ *   sponsor { name, amount, url?, logo? } -> a brand adds a bonus to the pot (locked in escrow)
  *   settle {}                    -> after the deadline: pay finishers from escrow
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -71,6 +71,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       const name = clean(body.name, 40);
       const amount = Number(body.amount);
       const url = typeof body.url === "string" && /^https:\/\/[^\s]{3,200}$/.test(body.url.trim()) ? body.url.trim() : undefined;
+      const logo = typeof body.logo === "string" && body.logo ? body.logo : null;
+      if (logo && (!/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(logo) || logo.length > MAX_LOGO_BYTES * 1.37))
+        return fail("Logo must be a PNG or JPG under 150 KB.");
       if (!name) return fail("Add the sponsor's name.");
       if (!SPONSOR_BONUSES.includes(amount)) return fail("Pick a bonus amount.");
       return await withLock(`c:${id}`, async () => {
@@ -79,8 +82,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         if (c.status !== "active" || Date.now() >= c.endsAt) return fail("This challenge already ended.", 409);
         if ((c.sponsors || []).length >= MAX_SPONSORS) return fail("This challenge already has the maximum number of sponsors.", 409);
         const sig = await lockSponsorBonus(id, amount); // money first
+        const index = (c.sponsors || []).length;
+        if (logo) await kvSet(`sponsorlogo:${id}:${index}`, logo);
         const updated = await mutate(id, (x) => {
-          x.sponsors = [...(x.sponsors || []), { name, amount, url, at: Date.now(), sig }];
+          x.sponsors = [...(x.sponsors || []), { name, amount, url, at: Date.now(), sig, logo: !!logo }];
         });
         return NextResponse.json({ challenge: updated });
       });

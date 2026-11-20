@@ -106,6 +106,23 @@ listed first. Example: 3 runners × $10 + a $50 bonus, 2 finish → each finishe
   directly with Strava. **Next step:** Garmin / Apple Health import and photo checks (location and time metadata).
 - **On-ramp:** the sponsor wallet stands in for a card or Apple Pay payment.
 
+## Getting paid (My earnings page)
+
+`/earnings` shows each runner's **balance** (their USDC, read live from Solana), what's been **paid out**, sponsor
+bonuses earned (with the sponsor's logo), money **locked in live challenges**, and every payout with its receipt.
+
+**Cash out:** runners can send their USDC to any Solana wallet (e.g. Phantom). The server builds the transfer and signs
+only as the **fee payer** (so runners need no SOL); the runner's browser adds its own signature, so only the runner
+can move their money. The server only submits transactions it built (fee payer + token/memo instructions, valid
+signatures). Next step: cash out straight to a bank account through an off-ramp.
+
+## Sponsor and partner logos
+
+- Sponsors can upload a PNG/JPG logo when they add a bonus. It is shrunk to 256 px in the browser and shown on the
+  challenge card, the challenge banner, the Sponsors card and the Earnings page. (SVG uploads are refused for safety.)
+- The "Powered by" strip shows official partner logos if you add the files to `public/partners/`
+  (see the README there); until then it shows the names.
+
 ## Install it like an app
 
 Lock&Run is an installable web app. Open the site on a phone and choose **Add to Home Screen** (Safari: Share button;
@@ -179,6 +196,11 @@ components/StravaImport.tsx     Connect Strava and import runs
 lib/strava.ts                   Strava OAuth + activities (server)
 app/api/strava/*                Strava connect / callback / status / runs
 app/api/photos/[runId]          Serves run photos
+app/earnings/page.tsx           My earnings: balance, payouts, cash out
+app/api/wallet/route.ts         Balance + cash-out (prepare / submit)
+app/api/sponsor-logo/...        Serves sponsor logos
+components/AppShell.tsx         Web sidebar / phone top bar + tab bar
+components/SponsorBox.tsx       Sponsor a challenge (bonus + logo)
 public/manifest.webmanifest     Install-to-home-screen settings + icons
 app/api/challenges/route.ts     List + create (locks the creator's deposit)
 app/api/challenges/[id]/route.ts Join (lock deposit) / log run / settle (pay out)

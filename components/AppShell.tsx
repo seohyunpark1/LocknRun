@@ -41,6 +41,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const nav = [
     { href: "/", label: "Challenges", icon: <IconList />, on: onHome && hash !== "#new" && hash !== "#how" },
     { href: "/#new", label: "New challenge", short: "New", icon: <IconPlus />, on: onHome && hash === "#new" },
+    { href: "/earnings", label: "My earnings", short: "Earnings", icon: <IconWallet />, on: path === "/earnings" },
     { href: "/#how", label: "How it works", short: "How", icon: <IconInfo />, on: onHome && hash === "#how" },
   ];
 
@@ -128,6 +129,14 @@ function IconInfo() {
     <svg {...svg} aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
+    </svg>
+  );
+}
+function IconWallet() {
+  return (
+    <svg {...svg} aria-hidden>
+      <rect x="3" y="6" width="18" height="13" rx="2.5" />
+      <path d="M3 10h18M16 14.5h2" />
     </svg>
   );
 }

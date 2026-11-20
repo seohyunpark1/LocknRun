@@ -65,7 +65,17 @@ export type Participant = {
 export type ChallengeStatus = "active" | "settling" | "settled";
 
 /** A brand that added bonus money to a challenge's pot (split among finishers). */
-export type Sponsor = { name: string; amount: number; url?: string; at: number; sig: string };
+export type Sponsor = { name: string; amount: number; url?: string; at: number; sig: string; logo?: boolean };
+export const MAX_LOGO_BYTES = 150_000; // sponsor logos are shrunk to 256px in the browser first
+export const sponsorLogoUrl = (challengeId: string, index: number) => `/api/sponsor-logo/${challengeId}/${index}`;
+
+/** Tech partners shown in the "Powered by" strip. Drop official logo files into /public/partners/ to show them. */
+export const PARTNERS = [
+  { name: "Solana", role: "Escrow, payouts and proof stamps", logo: "/partners/solana.svg" },
+  { name: "USDC", role: "Deposits and payouts in digital dollars", logo: "/partners/usdc.svg" },
+  { name: "ElevenLabs", role: "Voice coach while you run", logo: "/partners/elevenlabs.svg" },
+  { name: "Strava", role: "Import runs as proof", logo: "/partners/strava.svg" },
+];
 export const SPONSOR_BONUSES = [10, 25, 50, 100];
 export const MAX_SPONSORS = 3;
 

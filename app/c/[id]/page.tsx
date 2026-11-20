@@ -6,6 +6,7 @@ import NameGate from "@/components/NameGate";
 import AppShell from "@/components/AppShell";
 import RunTracker from "@/components/RunTracker";
 import SponsorBox from "@/components/SponsorBox";
+import { SponsorMark } from "@/components/Logos";
 import StravaImport from "@/components/StravaImport";
 import { Challenge, Run, bonusOf, countedRuns, explorerTx, isFinisher, money, pace, potOf } from "@/lib/config";
 import { computePayouts } from "@/lib/settle";
@@ -149,6 +150,11 @@ export default function ChallengePage() {
           {bonus > 0 && (
             <div className="sponsor-banner">
               <span className="sponsor-badge">+{money(bonus)} bonus</span>
+              <span className="sponsor-marks">
+                {c.sponsors!.map((s, i) => (
+                  <SponsorMark key={i} c={c} index={i} s={s} />
+                ))}
+              </span>
               <span>Sponsored by {c.sponsors!.map((x) => x.name).join(", ")}</span>
             </div>
           )}
@@ -352,6 +358,7 @@ export default function ChallengePage() {
           <div className="toast-card">
             <div className="toast-big">{toast.big}</div>
             <div style={{ fontSize: 20, fontWeight: 800, marginTop: 10 }}>{toast.line}</div>
+            <Link href="/earnings" className="btn primary block" style={{ marginTop: "1rem" }}>See my earnings</Link>
           </div>
         </div>
       )}
