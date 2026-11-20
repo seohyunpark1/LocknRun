@@ -38,19 +38,36 @@ split follows fixed rules, and nobody (not even a friend who "forgets") can back
  Voice coach: GET /api/voice ──► ElevenLabs text-to-speech ("2 kilometers done. Pace: 5 minutes 40 per kilometer.")
 ```
 
-### Settlement rules (`lib/settle.ts`)
-Everyone locks the same deposit `D`. With `F` finishers and `Q` quitters:
-- **Finishers** receive `D + (Q × D + B) / F`, where `B` is the sponsor bonus (rounded down to the cent).
-- **Quitters** receive nothing; their deposits fund the finishers.
-- **If nobody finishes,** everyone is refunded `D` and sponsors get their bonus back.
+### Rewards (`lib/settle.ts`), Challengers-style
+Everyone locks the same deposit `D`. Your **achievement rate** is the share of required runs you completed.
 
-Example: 3 runners × $10. Two finish, one quits → each finisher gets **$15** ($10 back + $5 from the quitter).
+| Achievement | You get back |
+|---|---|
+| **100%** | `D` + an equal share of the **prize pool** |
+| **85–99%** | `D` (full deposit, no prize) |
+| **Below 85%** | `D × rate` (e.g. 1 of 2 runs → 50% of `D`) |
+
+**Prize pool** = everything the below-85% runners don't get back + any sponsor bonus, split equally among the
+100% runners. If nobody reaches 100%, everyone gets `D` back and sponsors get their bonus back. Amounts are whole
+cents, rounded down; leftover cents stay in escrow.
+
+Example: 3 runners × $20 with a $75 sponsor bonus, 2 runs required. Maria 2/2, Daniel 1/2, Kevin 0/2 →
+Daniel gets $10 back, Kevin $0, and Maria gets $20 + $30 + $75 = **$125**. Pot $135, all paid out.
+
+### Badges
+The earnings page awards badges: First 100%, Hot streak (3 perfect in a row), Perfect five, Sponsor-backed,
+10K club and Marathoner (counted distance).
+
+### Ads
+Ad spots on the home page, challenge page and earnings page show real sponsors of live challenges (logo, name,
+their own ad message, link), always labeled "Sponsored", rotating every few seconds. With no sponsors yet, the spot
+advertises sponsoring a challenge. Sponsors write their ad message when they add a bonus.
 
 ### Sponsored challenges
-Brands (a running store, a campus club) can add a **bonus** of $10, $25, $50 or $100 to any live challenge. The bonus
-is locked in the same escrow (memo `LockRun|sponsor|<challenge>`), split equally among finishers at payout, and
-returned to the sponsor if nobody finishes. Sponsored challenges show a "+$50 bonus · Sponsored by …" badge and are
-listed first. Example: 3 runners × $10 + a $50 bonus, 2 finish → each finisher gets $40.
+Brands (a running store, a campus club) can add a **bonus** of $10, $25, $50 or $100 to any live challenge, with a
+logo and an ad message. The bonus is locked in the same escrow (memo `LockRun|sponsor|<challenge>`), goes into the
+prize pool for 100% runners, and is returned to the sponsor if nobody hits 100%. Sponsored challenges show a
+"+$50 bonus · Sponsored by …" badge, are listed first, and the top sponsor's logo leads the payout pop-up.
 
 ### Proof: every run needs one
 - **Photo proof (GPS runs):** after a GPS run, the runner adds a photo (a selfie at the finish or their watch screen).

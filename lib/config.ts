@@ -71,7 +71,7 @@ export type Participant = {
 export type ChallengeStatus = "active" | "settling" | "settled";
 
 /** A brand that added bonus money to a challenge's pot (split among finishers). */
-export type Sponsor = { name: string; amount: number; url?: string; at: number; sig: string; logo?: boolean };
+export type Sponsor = { name: string; amount: number; url?: string; at: number; sig: string; logo?: boolean; tagline?: string };
 export const MAX_LOGO_BYTES = 150_000; // sponsor logos are shrunk to 256px in the browser first
 export const sponsorLogoUrl = (challengeId: string, index: number) => `/api/sponsor-logo/${challengeId}/${index}`;
 

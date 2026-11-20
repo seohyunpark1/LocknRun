@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Challenge, explorerAddress, isFinisher, money, partnerByName, partnerLogoSources } from "@/lib/config";
+import { Challenge, explorerAddress, money, partnerByName, partnerLogoSources } from "@/lib/config";
+import { computePayouts } from "@/lib/settle";
 import { speak, useMe } from "@/lib/client";
 import Celebration, { Win } from "./Celebration";
 import { PartnerLogo } from "./Logos";
@@ -54,15 +55,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         if (c.settledAt && Date.now() - c.settledAt > 7 * 86400_000) continue; // only recent payouts
         const p = c.participants.find((x) => x.address === address);
         if (!p) continue;
-        const finishers = c.participants.filter((x) => isFinisher(c, x)).length;
         localStorage.setItem(CELEBRATED, JSON.stringify([...seen, c.id]));
-        if ((p.payout || 0) <= 0) return; // didn't finish: no pop-up
-        const refund = finishers === 0;
-        setWin({ c, payout: p.payout || 0, paySig: p.paySig, refund });
+        if ((p.payout || 0) <= 0) return; // nothing back: no pop-up
+        const { payouts } = computePayouts(c);
+        const mine = payouts.find((x) => x.address === address)!;
+        const nobodyWon = !payouts.some((x) => x.tier === "full");
+        const kind = nobodyWon ? "refund" : mine.tier;
+        setWin({ c, payout: p.payout || 0, paySig: p.paySig, kind, rate: mine.rate });
         speak(
-          refund
-            ? `Your ${c.deposit} dollars are back in your account.`
-            : `Congratulations! You earned ${p.payout} dollars for finishing ${c.title}.`
+          kind === "full"
+            ? `Congratulations! You hit 100 percent and won ${p.payout} dollars.`
+            : kind === "safe"
+              ? `So close! Your ${c.deposit} dollars are back.`
+              : kind === "refund"
+                ? `Your ${c.deposit} dollars are back in your account.`
+                : `You got ${p.payout} dollars back.`
         );
         return;
       }

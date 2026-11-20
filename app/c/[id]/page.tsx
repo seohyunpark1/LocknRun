@@ -6,6 +6,7 @@ import NameGate from "@/components/NameGate";
 import AppShell from "@/components/AppShell";
 import RunTracker from "@/components/RunTracker";
 import SponsorBox from "@/components/SponsorBox";
+import AdSlot from "@/components/AdSlot";
 import { SponsorMark } from "@/components/Logos";
 import StravaImport from "@/components/StravaImport";
 import { Challenge, Run, bonusOf, countedRuns, explorerTx, isFinisher, money, pace, potOf } from "@/lib/config";
@@ -110,6 +111,7 @@ export default function ChallengePage() {
   const bonus = bonusOf(c);
   const { payouts } = computePayouts(c);
   const myProjected = payouts.find((p) => p.address === me?.address);
+  const { prizePerWinner: prizeNow } = computePayouts(c);
   const board = [...c.participants].sort((a, b) => countedRuns(b) - countedRuns(a));
 
   return (
@@ -125,8 +127,8 @@ export default function ChallengePage() {
           <h1 style={{ marginTop: 10 }}>{c.title}</h1>
           <p className="lede">
             Run <b>{c.goalKm} km</b>, <b>{c.runsRequired} time{c.runsRequired > 1 ? "s" : ""}</b> before the clock runs out.
-            Deposit <b>{money(c.deposit)}</b>. Finishers split the quitters&apos; deposits
-            {bonus > 0 ? <> and a <b>{money(bonus)} sponsor bonus</b></> : null}.
+            Deposit <b>{money(c.deposit)}</b>. Hit 100% to win prize money
+            {bonus > 0 ? <>, including a <b>{money(bonus)} sponsor bonus</b></> : null}.
           </p>
           {bonus > 0 && (
             <div className="sponsor-banner">
@@ -164,8 +166,8 @@ export default function ChallengePage() {
               <h2>Join this challenge</h2>
               <p className="muted" style={{ marginTop: 0 }}>
                 Lock {money(c.deposit)}. Finish {c.runsRequired}× {c.goalKm} km and you get it back
-                {c.participants.length > 0 ? ", plus a share of anyone who quits" : ""}
-                {bonus > 0 ? ` and of the ${money(bonus)} sponsor bonus` : ""}.
+                {c.participants.length > 0 ? ", plus prize money from anyone who doesn't" : ""}
+                {bonus > 0 ? ` and the ${money(bonus)} sponsor bonus` : ""}.
               </p>
               <button className="btn primary block" disabled={!!busy || !me} onClick={() => act("join")}>
                 {busy === "join" ? "Locking your deposit…" : `Join & lock ${money(c.deposit)}`}
@@ -178,7 +180,7 @@ export default function ChallengePage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                 <h2>Your run</h2>
                 <span className="muted small">
-                  {Math.min(countedRuns(mine), c.runsRequired)}/{c.runsRequired} runs counted {isFinisher(c, mine) ? "· finished" : ""}
+                  {Math.min(countedRuns(mine), c.runsRequired)}/{c.runsRequired} runs · {Math.round((Math.min(countedRuns(mine), c.runsRequired) / c.runsRequired) * 100)}%
                 </span>
               </div>
               <RunTracker goalKm={c.goalKm} demo={demo} onFinish={saveRun} />
@@ -194,7 +196,7 @@ export default function ChallengePage() {
             <div className="card" style={{ marginBottom: "1.25rem" }}>
               <h2>Time&apos;s up! Ready to pay out</h2>
               <p className="muted" style={{ marginTop: 0 }}>
-                {payouts.filter((p) => p.finisher).length} of {c.participants.length} finished. Anyone can trigger the payout;
+                {payouts.filter((p) => p.tier === "full").length} of {c.participants.length} hit 100%. Anyone can trigger the payout;
                 the rules decide who gets what.
               </p>
               <button className="btn primary block" disabled={!!busy} onClick={() => act("settle")}>
@@ -244,9 +246,11 @@ export default function ChallengePage() {
                   </div>
                   <div className="payout lb-pay">
                     {c.status === "settled" ? (
-                      <b className={(p.payout || 0) > 0 ? "win" : "lose"}>{(p.payout || 0) > 0 ? `+${money(p.payout || 0)}` : `-${money(c.deposit)}`}</b>
+                      <b className={(p.payout || 0) > c.deposit ? "win" : (p.payout || 0) >= c.deposit ? "" : "lose"}>
+                        {(p.payout || 0) > c.deposit ? `+${money(p.payout || 0)}` : (p.payout || 0) >= c.deposit ? `${money(c.deposit)} back` : `-${money(Math.round((c.deposit - (p.payout || 0)) * 100) / 100)}`}
+                      </b>
                     ) : (
-                      <span className="muted small">{fin ? `on track for ${money(po?.amount || 0)}` : "not yet"}</span>
+                      <span className="muted small">{po ? `${Math.round(po.rate * 100)}% · ${money(po.amount)}` : "—"}</span>
                     )}
                   </div>
                   {p.runs.length > 0 && (
@@ -272,20 +276,45 @@ export default function ChallengePage() {
 
         <div className="side-col">
         <aside className="soft">
-          <h2>How the pot splits</h2>
-          <p className="small" style={{ lineHeight: 1.5 }}>
-            Everyone locks the same <b>{money(c.deposit)}</b>. When time&apos;s up:
+          <h2>Rewards</h2>
+          <p className="small" style={{ lineHeight: 1.5, marginTop: 0 }}>
+            Everyone locks <b>{money(c.deposit)}</b>. What you get back depends on how many of your {c.runsRequired} runs you finish:
           </p>
-          <ul className="small" style={{ lineHeight: 1.6, paddingLeft: 18 }}>
-            <li>Finishers get their deposit back plus an equal share of the quitters&apos; deposits.</li>
-            <li>Quitters lose their deposit.</li>
-            <li>Sponsor bonuses are split equally among finishers.</li>
-            <li>If nobody finishes, everyone is refunded (and sponsors get their bonus back).</li>
-          </ul>
+          <div className="tiers">
+            <div className="tier-row full">
+              <span className="tier-pill tier-full">100%</span>
+              <div>
+                <b>Deposit back + prize</b>
+                <div className="muted small">
+                  {prizeNow > 0 ? `Prize right now: +${money(prizeNow)} each` : "Prize grows as others miss runs or sponsors join"}
+                </div>
+              </div>
+            </div>
+            <div className="tier-row">
+              <span className="tier-pill tier-safe">85–99%</span>
+              <div>
+                <b>Full deposit back</b>
+                <div className="muted small">No prize, no loss</div>
+              </div>
+            </div>
+            <div className="tier-row">
+              <span className="tier-pill tier-partial">&lt;85%</span>
+              <div>
+                <b>Part of your deposit back</b>
+                <div className="muted small">
+                  Same % as you finish{c.runsRequired > 1 ? ` (e.g. ${Math.floor(c.runsRequired / 2)}/${c.runsRequired} runs → ${money(Math.floor((c.deposit * 100 * Math.floor(c.runsRequired / 2)) / c.runsRequired) / 100)})` : ""}
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="muted small" style={{ lineHeight: 1.5 }}>
+            The prize pool is what others don&apos;t get back plus any sponsor bonus, split among everyone at 100%. If nobody
+            hits 100%, everyone is refunded and sponsors get their bonus back.
+          </p>
           {mine && myProjected && c.status !== "settled" && (
             <div className="result ok" style={{ marginTop: 10 }}>
-              If it ended right now you&apos;d get <b>{money(myProjected.amount)}</b>
-              {myProjected.finisher ? "" : " (finish your runs to get paid!)"}
+              You&apos;re at <b>{Math.round(myProjected.rate * 100)}%</b>. If it ended now you&apos;d get <b>{money(myProjected.amount)}</b>
+              {myProjected.tier === "full" ? "" : `. Finish all ${c.runsRequired} runs for the prize!`}
             </div>
           )}
           <p className="muted small" style={{ marginTop: 14 }}>
@@ -294,6 +323,7 @@ export default function ChallengePage() {
           </p>
         </aside>
         <SponsorBox c={c} live={live} onUpdated={setC} />
+        <AdSlot variant="card" />
         </div>
       </div>
 

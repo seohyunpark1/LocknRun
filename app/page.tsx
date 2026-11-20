@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NameGate from "@/components/NameGate";
 import Dial from "@/components/Dial";
+import AdSlot from "@/components/AdSlot";
 import TypeValue from "@/components/TypeValue";
 import AppShell from "@/components/AppShell";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
@@ -81,8 +82,8 @@ export default function Home() {
             Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
           </h1>
           <p className="lede">
-            Put money on your running goal with friends. Everyone who finishes gets their deposit back <b>plus</b> a share of
-            the quitters&apos; money. The deposits wait in escrow on Solana, so nobody can back out of paying.
+            Put money on your running goal with friends. Hit 100% and get your deposit back <b>plus</b> prize money from
+            the runners who didn&apos;t. Everything waits in escrow on Solana, so nobody can back out of paying.
           </p>
         </div>
         <aside className="app-sponsors" aria-label="Partners">
@@ -113,6 +114,8 @@ export default function Home() {
           <div className="stat-num">{runners}</div>
         </div>
       </div>
+
+      <AdSlot />
 
       <div className="layout">
         <section>
@@ -193,7 +196,7 @@ export default function Home() {
       <section className="steps" id="how">
         <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your $10 is locked in escrow.</div>
         <div className="step"><b>2 · Run and prove it</b>GPS and a voice coach track every km. Add a photo or a Strava run as proof.</div>
-        <div className="step"><b>3 · Split the pot</b>Finishers split the quitters&apos; deposits, paid out in about a second.</div>
+        <div className="step"><b>3 · Get rewarded</b>100% = deposit + prize. 85%+ = deposit back. Less = the % you finished.</div>
       </section>
 
       <section className="partners" aria-label="Powered by">

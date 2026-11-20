@@ -38,7 +38,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
  *   run    { address, km, sec, photo } -> log a GPS run with a photo proof
  *   strava { address, activityId }      -> import a run from Strava (verified with Strava's API)
  *   (a run counts if distance >= goal and the pace is human; its proof is stamped on Solana)
- *   sponsor { name, amount, url?, logo? } -> a brand adds a bonus to the pot (locked in escrow)
+ *   sponsor { name, amount, url?, logo?, tagline? } -> a brand adds a bonus (locked in escrow); tagline is its ad message
  *   settle {}                    -> after the deadline: pay finishers from escrow
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -69,6 +69,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     if (body.action === "sponsor") {
       const name = clean(body.name, 40);
+      const tagline = clean(body.tagline, 90);
       const amount = Number(body.amount);
       const url = typeof body.url === "string" && /^https:\/\/[^\s]{3,200}$/.test(body.url.trim()) ? body.url.trim() : undefined;
       const logo = typeof body.logo === "string" && body.logo ? body.logo : null;
@@ -85,7 +86,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         const index = (c.sponsors || []).length;
         if (logo) await kvSet(`sponsorlogo:${id}:${index}`, logo);
         const updated = await mutate(id, (x) => {
-          x.sponsors = [...(x.sponsors || []), { name, amount, url, at: Date.now(), sig, logo: !!logo }];
+          x.sponsors = [...(x.sponsors || []), { name, amount, url, at: Date.now(), sig, logo: !!logo, tagline: tagline || undefined }];
         });
         return NextResponse.json({ challenge: updated });
       });

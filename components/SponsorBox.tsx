@@ -10,6 +10,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
   const [url, setUrl] = useState("");
   const [amount, setAmount] = useState(25);
   const [logo, setLogo] = useState("");
+  const [tagline, setTagline] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const sponsors = c.sponsors || [];
@@ -23,7 +24,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
       const r = await fetch(`/api/challenges/${c.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sponsor", name, amount, url: url.trim() || undefined, logo: logo || undefined }),
+        body: JSON.stringify({ action: "sponsor", name, amount, url: url.trim() || undefined, logo: logo || undefined, tagline: tagline.trim() || undefined }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Couldn't add the sponsor.");
@@ -32,6 +33,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
       setName("");
       setUrl("");
       setLogo("");
+      setTagline("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -106,6 +108,8 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
               }}
             />
           </label>
+          <label htmlFor="sp-tag">Ad message (optional)</label>
+          <input id="sp-tag" className="input" maxLength={90} placeholder="20% off running shoes for Lock&Run finishers" value={tagline} onChange={(e) => setTagline(e.target.value)} />
           <label htmlFor="sp-url">Website (optional)</label>
           <input id="sp-url" className="input" maxLength={200} placeholder="https://" value={url} onChange={(e) => setUrl(e.target.value)} />
           <button className="btn primary block" style={{ marginTop: "1rem" }} disabled={busy} onClick={submit}>
@@ -115,7 +119,8 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
             Cancel
           </button>
           <p className="muted small" style={{ margin: "0.5rem 0 0" }}>
-            Demo mode: paid with test dollars. If nobody finishes, the bonus goes back to the sponsor.
+            Your logo and ad message appear in Lock&amp;Run&apos;s ad spots while the challenge is live, and on the payout
+            screen of every runner who hits 100%. Demo mode: test dollars. If nobody hits 100%, the bonus goes back to you.
           </p>
         </div>
       )}
