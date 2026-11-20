@@ -3,8 +3,8 @@ import { prepareDeposit } from "@/lib/deposits";
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import crypto from "node:crypto";
-import { MAX_PACE_SEC_PER_KM, MAX_PHOTO_BYTES, MIN_PACE_SEC_PER_KM, Run, clean } from "@/lib/config";
-import { payFromEscrow, stampProof } from "@/lib/solana-server";
+import { MAX_PACE_SEC_PER_KM, MAX_PHOTO_BYTES, MAX_SPONSORS, MIN_PACE_SEC_PER_KM, Run, SPONSOR_BONUSES, clean } from "@/lib/config";
+import { payFromEscrow, sponsorAddress, stampProof } from "@/lib/solana-server";
 import { computePayouts } from "@/lib/settle";
 import { acquireLock, getChallenge, mutate, newId, releaseLock, savePhoto } from "@/lib/store";
 import { StravaRun, getRun, stravaEnabled } from "@/lib/strava";
@@ -41,6 +41,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
  *   run    { address, km, sec, photo } -> log a GPS run with a photo proof
  *   strava { address, activityId }      -> import a run from Strava (verified with Strava's API)
  *   (a run counts if distance >= goal and the pace is human; its proof is stamped on Solana)
+ *   sponsor { name, amount, url? }      -> a brand adds a bonus to the pot (locked in escrow)
  *   settle {}                    -> after the deadline: pay finishers from escrow
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -65,6 +66,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         if (c.status !== "active" || now >= c.endsAt) return fail("This challenge already ended.", 409);
         if (c.participants.some((p) => p.address === body.address)) return fail("You're already in!", 409);
         const prepared = await prepareDeposit(c, address, clean(body.name, 24, "Runner"));
+        return NextResponse.json({ ...prepared, challenge: c });
+      });
+    }
+
+    if (body.action === "sponsor") {
+      const name = clean(body.name, 40);
+      const amount = Number(body.amount);
+      const url = typeof body.url === "string" && /^https:\/\/[^\s]{3,200}$/.test(body.url.trim()) ? body.url.trim() : undefined;
+      if (!name) return fail("Add the sponsor's name.");
+      if (!SPONSOR_BONUSES.includes(amount)) return fail("Pick a bonus amount.");
+      return await withLock(`c:${id}`, async () => {
+        const c = await getChallenge(id);
+        if (!c) return fail("Challenge not found", 404);
+        if (c.status !== "active" || Date.now() >= c.endsAt) return fail("This challenge already ended.", 409);
+        if ((c.sponsors || []).length >= MAX_SPONSORS) return fail("This challenge already has the maximum number of sponsors.", 409);
+        const prepared = await prepareDeposit(c, address, name, { amount, url });
         return NextResponse.json({ ...prepared, challenge: c });
       });
     }
@@ -176,6 +193,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
             y.payout = po.amount;
             y.paySig = sig;
           });
+        }
+        const { sponsorRefund } = computePayouts(c);
+        if (sponsorRefund > 0 && !c.sponsorRefundSig) {
+          for (let i = 0; i < (c.sponsors || []).length; i++) {
+            const entry = (await getChallenge(id))!.sponsors![i];
+            if (entry.refundSig) continue;
+            const to = entry.address || sponsorAddress();
+            // Include the funding signature so refunds cannot collide with runner payouts or each other.
+            const sig = await payFromEscrow(`${id}:${entry.sig}`, to, entry.amount, "sponsor-refund");
+            await mutate(id, x => { x.sponsors![i].refundSig = sig; });
+          }
+          await mutate(id, x => { x.sponsorRefundSig = x.sponsors?.[0]?.refundSig; });
         }
         const updated = await mutate(id, (x) => {
           x.status = "settled";

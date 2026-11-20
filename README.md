@@ -35,10 +35,10 @@ Show **`$10 USDC`** for stakes, pools and rewards, and **SOL separately for netw
 | Settlement | 5% of forfeitures, six-decimal join-order rounding; review window, timeout refunds, individual claims | Existing no-fee split rounded down to cents, zero-finisher refunds and server-triggered batch payouts; no review/timeout protocol |
 | Indexing | Authenticated QuickNode Streams webhook | Direct RPC confirmation and polling; no Streams integration |
 | Storage | Supabase Auth, Postgres and private Storage | Redis on Vercel, local JSON during development; photo endpoint now requires room membership |
-| Sponsor offers | Demo campaign, atomic single-use QR | Not implemented |
+| Sponsors | Demo campaign, atomic single-use QR | Wallet-funded sponsor bonuses and zero-finisher refunds; campaign offers/QR redemption not implemented |
 | Voice | Optional ElevenLabs | Existing voice coach and browser voice fallback |
 
-**Strava remains a pre-existing optional integration, outside the document's proposed MVP path.** Its routes now use the authenticated wallet. Native iOS, Anchor, new settlement economics, sponsors and Streams are separate implementation work. This change implements the requested wallet connection and funding flow without representing those planned features as complete.
+**Strava remains a pre-existing optional integration, outside the document's proposed MVP path.** Its routes now use the authenticated wallet. Native iOS, Anchor, new settlement economics, merchant campaigns and Streams are separate implementation work. This change implements the requested wallet connection and funding flow without representing those planned features as complete.
 
 ## Run locally
 
@@ -77,3 +77,9 @@ Tests use ephemeral fixture keys and mocked RPC responses; they do not send fund
 - Custom Anchor Program ID: none deployed by this implementation.
 
 Implementation references: [Wallet Standard Solana features](https://github.com/wallet-standard/wallet-standard/blob/master/extensions/solana.md), [Solana transaction confirmation](https://solana.com/docs/rpc/http/gettransaction).
+
+## Interface and sponsored challenges
+
+The merged interface uses a green theme, a desktop sidebar/dashboard, mobile top and bottom navigation, and duration controls for minutes, hours, days, weeks and months (a month is 30 elapsed days). Wallet address, disconnect and confirmation retry controls remain available in both layouts.
+
+A connected wallet can fund one sponsor bonus per room (10, 25, 50 or 100 test USDC; at most three sponsors). The donor signs the bonus transfer using the same simulated, confirmed deposit flow as runners. Only confirmed bonuses enter the pool. The donor does not become a runner automatically. Finishers share the bonus; if nobody finishes, each sponsor's bonus returns to its recorded funding address. Historical demo bonuses without an address return to the configured server sponsor wallet. Refunds use persisted transaction signatures independently of runner payouts. Sponsor offers and single-use vouchers remain future work.

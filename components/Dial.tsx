@@ -10,6 +10,8 @@ type Props = {
   format: (v: number) => string;
   /** Number printed under each tick, e.g. v => `$${v}` */
   tick?: (v: number) => string;
+  /** Hide the label row (when another control above already shows it) */
+  hideHead?: boolean;
 };
 
 const CELL_REM = 3.25; // width of one stop on the ruler
@@ -18,7 +20,7 @@ const CELL_REM = 3.25; // width of one stop on the ruler
  * Kitchen-timer style picker: a ruler with tick marks scrolls under a fixed ▼ pointer
  * and snaps to the nearest value. Works with swipe (phone), trackpad, mouse drag and arrow keys.
  */
-export default function Dial({ label, options, value, onChange, format, tick = String }: Props) {
+export default function Dial({ label, options, value, onChange, format, tick = String, hideHead = false }: Props) {
   const track = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(Math.max(0, options.indexOf(value)));
   const settleTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -90,11 +92,13 @@ export default function Dial({ label, options, value, onChange, format, tick = S
   }
 
   return (
-    <div className="dial">
-      <div className="dial-head">
-        <span>{label}</span>
-        <b>{format(options[live])}</b>
-      </div>
+    <div className={`dial ${hideHead ? "dial-bare" : ""}`}>
+      {!hideHead && (
+        <div className="dial-head">
+          <span>{label}</span>
+          <b>{format(options[live])}</b>
+        </div>
+      )}
       <div className="dial-body">
         <div className="dial-pointer" aria-hidden />
         <div

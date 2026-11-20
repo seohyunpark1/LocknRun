@@ -3,16 +3,20 @@ import { createHash } from 'node:crypto';
 import { PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from '@solana/spl-token';
 import { connection, escrowAddress } from './solana-server';
-import { MEMO_PROGRAM_ID, USDC_DECIMALS, USDC_MINT, Challenge } from './config';
+import { MEMO_PROGRAM_ID, USDC_DECIMALS, USDC_MINT, Challenge, MAX_SPONSORS, SPONSOR_BONUSES } from './config';
 import { getChallenge, mutate, kvGet, kvSet, acquireLock, releaseLock } from './store';
 
-type Intent = { challengeId: string; address: string; name: string; transaction: string; message: string; blockhash: string; lastValidBlockHeight: number; signature?: string; confirmed?: boolean };
+type Intent = { kind?: "join" | "sponsor"; amount?: number; url?: string; challengeId: string; address: string; name: string; transaction: string; message: string; blockhash: string; lastValidBlockHeight: number; signature?: string; confirmed?: boolean };
 export function requireDurableStorage() {
   if (process.env.VERCEL && !(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) && !(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)) throw new Error('Configure Redis before accepting wallet deposits.');
 }
-export async function prepareDeposit(c: Challenge, address: string, name: string) {
+export async function prepareDeposit(c: Challenge, address: string, name: string, funding?: { amount: number; url?: string }) {
   requireDurableStorage();
-  if (c.participants.some(p => p.address === address)) throw new Error('This wallet already joined.');
+  if (!funding && c.participants.some(p => p.address === address)) throw new Error('This wallet already joined.');
+  if (funding && (!SPONSOR_BONUSES.includes(funding.amount) || (c.sponsors || []).length >= MAX_SPONSORS)) throw new Error('Sponsor amount or capacity is invalid.');
+  if (funding && c.sponsors?.some(s => s.address === address)) throw new Error('This wallet already sponsors this challenge.');
+  const amount = funding?.amount ?? c.deposit;
+  const kind = funding ? 'sponsor' : 'join';
   if (!['draft', 'active'].includes(c.status) || Date.now() >= c.endsAt) throw new Error('Challenge is closed.');
   const owner = new PublicKey(address);
   const recipient = escrowAddress();
@@ -22,8 +26,8 @@ export async function prepareDeposit(c: Challenge, address: string, name: string
   const lifetime = await connection.getLatestBlockhash('confirmed');
   const tx = new Transaction({ ...lifetime, feePayer: owner }).add(
     createAssociatedTokenAccountIdempotentInstruction(owner, getAssociatedTokenAddressSync(mint, to, true), to, mint),
-    createTransferCheckedInstruction(getAssociatedTokenAddressSync(mint, owner), mint, getAssociatedTokenAddressSync(mint, to, true), owner, BigInt(c.deposit * 10 ** USDC_DECIMALS), USDC_DECIMALS),
-    new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|join|${c.id}|${address}`) })
+    createTransferCheckedInstruction(getAssociatedTokenAddressSync(mint, owner), mint, getAssociatedTokenAddressSync(mint, to, true), owner, BigInt(amount * 10 ** USDC_DECIMALS), USDC_DECIMALS),
+    new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|${kind}|${c.id}|${address}`) })
   );
   const simulation = await connection.simulateTransaction(tx);
   if (simulation.value.err) throw new Error('Deposit simulation failed. Check your devnet USDC and SOL balances.');
@@ -32,9 +36,9 @@ export async function prepareDeposit(c: Challenge, address: string, name: string
   const transaction = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');
   const message = tx.serializeMessage().toString('base64');
   const id = createHash('sha256').update(message).digest('hex');
-  const intent: Intent = { challengeId: c.id, address, name, transaction, message, ...lifetime };
+  const intent: Intent = { kind, amount, url: funding?.url, challengeId: c.id, address, name, transaction, message, ...lifetime };
   await kvSet(`deposit:${id}`, intent);
-  return { intentId: id, transaction, summary: { amount: c.deposit, recipient, mint: USDC_MINT, feeSol: fee.value / 1e9, feePayer: address, network: 'Solana Devnet', simulation: 'passed' } };
+  return { intentId: id, transaction, summary: { kind, amount, recipient, mint: USDC_MINT, feeSol: fee.value / 1e9, feePayer: address, network: 'Solana Devnet', simulation: 'passed' } };
 }
 export function validateSignedDeposit(serialized: string, expectedMessage: string, address: string) {
   const tx = Transaction.from(Buffer.from(serialized, 'base64'));
@@ -53,7 +57,12 @@ export async function confirmDeposit(id: string, signed: string, address: string
   try {
     const c = await getChallenge(intent.challengeId);
     if (!c) throw new Error('Challenge not found.');
-    const existing = c.participants.find(p => p.address === address);
+    const existingSponsor = intent.kind === "sponsor" ? c.sponsors?.find(s => s.address === address) : undefined;
+    if (existingSponsor) {
+      if (existingSponsor.sig === intent.signature) return c;
+      throw new Error("Wallet already funded a sponsor bonus.");
+    }
+    const existing = intent.kind === "sponsor" ? undefined : c.participants.find(p => p.address === address);
     if (existing) {
       if (existing.joinSig === intent.signature) return c;
       throw new Error('Wallet already joined with another deposit.');
@@ -61,6 +70,7 @@ export async function confirmDeposit(id: string, signed: string, address: string
     // A signed transaction is stored before broadcasting; retries reuse exactly the same signature.
     if (!intent.signature) {
       if (!['draft', 'active'].includes(c.status) || Date.now() >= c.endsAt) throw new Error('Challenge is closed.');
+      if (intent.kind === 'sponsor' && (c.sponsors || []).length >= MAX_SPONSORS) throw new Error('Sponsor capacity reached.');
       const bs58 = (await import('bs58')).default;
       intent.signature = bs58.encode(tx.signature!);
       await kvSet(`deposit:${id}`, intent);
@@ -79,7 +89,11 @@ export async function confirmDeposit(id: string, signed: string, address: string
     }
     const updated = await mutate(c.id, x => {
       x.pendingDeposits = x.pendingDeposits?.filter(v => v !== id);
-      x.participants.push({ name: intent.name, address, joinedAt: Date.now(), joinSig: intent.signature!, runs: [] });
+      if (intent.kind === "sponsor") {
+        x.sponsors = [...(x.sponsors || []), { address, name: intent.name, amount: intent.amount!, url: intent.url, at: Date.now(), sig: intent.signature! }];
+      } else {
+        x.participants.push({ name: intent.name, address, joinedAt: Date.now(), joinSig: intent.signature!, runs: [] });
+      }
       if (x.status === 'draft') x.status = 'active';
     });
     await kvSet(`deposit:${id}`, { ...intent, confirmed: true });

@@ -39,8 +39,8 @@ export function escrowAddress(): string | null {
 const usdcAccount = (owner: PublicKey) => getAssociatedTokenAddressSync(mint, owner, true);
 
 /** Returns rewards to the immutable participant address recorded at deposit. */
-export async function payFromEscrow(challengeId: string, to: string, amount: number) {
-  const key = `payout:${challengeId}:${to}`;
+export async function payFromEscrow(challengeId: string, to: string, amount: number, kind: "payout" | "sponsor-refund" = "payout") {
+  const key = `${kind}:${challengeId}:${to}`;
   type Payment = { signature: string; raw: string; blockhash: string; lastValidBlockHeight: number; amount: number };
   let payment = await kvGet<Payment>(key);
   if (payment && payment.amount !== amount) throw new Error("Recorded payout amount differs; reconciliation required.");
@@ -50,7 +50,7 @@ export async function payFromEscrow(challengeId: string, to: string, amount: num
     const tx = new Transaction({ ...lifetime, feePayer: payer.publicKey }).add(
       createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, usdcAccount(owner), owner, mint),
       createTransferCheckedInstruction(usdcAccount(source.publicKey), mint, usdcAccount(owner), source.publicKey, BigInt(Math.round(amount * 10 ** USDC_DECIMALS)), USDC_DECIMALS),
-      new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|payout|${challengeId}`) })
+      new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|${kind}|${challengeId}`) })
     );
     tx.sign(...(source.publicKey.equals(payer.publicKey) ? [payer] : [payer, source]));
     payment = { ...lifetime, amount, signature: bs58.encode(tx.signature!), raw: tx.serialize().toString('base64') };
@@ -64,6 +64,9 @@ export async function payFromEscrow(challengeId: string, to: string, amount: num
   if (result.value.err) throw new Error('Payout failed on Solana.');
   return payment.signature;
 }
+
+/** Legacy demo bonuses came from the configured sponsor; new bonuses record their actual funding wallet. */
+export function sponsorAddress() { return sponsor().publicKey.toBase58(); }
 
 /**
  * Stamps a run's proof on Solana: a memo-only transaction (paid by the sponsor) containing the

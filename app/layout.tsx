@@ -23,7 +23,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover", // use the full screen on notched phones when installed
-  themeColor: "#ffffff",
+  themeColor: "#e6f9ec",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

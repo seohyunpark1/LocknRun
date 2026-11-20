@@ -7,7 +7,7 @@ import type { SolanaSignMessageFeature, SolanaSignTransactionFeature } from '@so
 import bs58 from 'bs58';
 export type Me = { name: string; address: string };
 type ConnectedWallet = Wallet & { features: StandardConnectFeature & StandardDisconnectFeature & StandardEventsFeature & SolanaSignMessageFeature & SolanaSignTransactionFeature };
-type Prepared = { intentId: string; transaction: string; summary: { amount: number; mint: string; recipient: string; feeSol: number; feePayer: string; network: string } };
+type Prepared = { intentId: string; transaction: string; summary: { kind?: "join" | "sponsor"; amount: number; mint: string; recipient: string; feeSol: number; feePayer: string; network: string } };
 const Context = createContext<{
   me: Me | null; ready: boolean; wallets: Wallet[];
   join: (name: string, wallet?: Wallet) => Promise<void>;
@@ -78,7 +78,7 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     if (sessionStorage.getItem('lockrun.deposit')) throw new Error('Confirm your pending deposit before making another.');
     const s = prepared.summary;
     if (s.feePayer !== me.address) throw new Error('Wallet changed. Start again.');
-    if (!window.confirm(`Lock ${s.amount} test USDC\nNetwork: ${s.network}\nUSDC mint: ${s.mint}\nRecipient (server-managed escrow): ${s.recipient}\nFee payer: ${s.feePayer}\nNetwork fee: ${s.feeSol} SOL, plus token account rent if needed\nSimulation passed.\nRewards return to ${me.address}.\n\nContinue to your wallet to approve?`)) throw new Error('Deposit cancelled. No transaction signed.');
+    if (!window.confirm(`Lock ${s.amount} test USDC${s.kind === "sponsor" ? " as a sponsor bonus" : ""}\nNetwork: ${s.network}\nUSDC mint: ${s.mint}\nRecipient (server-managed escrow): ${s.recipient}\nFee payer: ${s.feePayer}\nNetwork fee: ${s.feeSol} SOL, plus token account rent if needed\nSimulation passed.\n${s.kind === "sponsor" ? "Bonus is split among finishers; a zero-finisher refund returns to" : "Rewards return to"} ${me.address}.\n\nContinue to your wallet to approve?`)) throw new Error('Deposit cancelled. No transaction signed.');
     const [signed] = await connected.wallet.features['solana:signTransaction'].signTransaction({ account: connected.account, chain: 'solana:devnet', transaction: Uint8Array.from(atob(prepared.transaction), c => c.charCodeAt(0)) });
     const signedTransaction = btoa(Array.from(signed.signedTransaction, b => String.fromCharCode(b)).join(''));
     sessionStorage.setItem('lockrun.deposit', JSON.stringify({ intentId: prepared.intentId, signedTransaction, address: me.address }));

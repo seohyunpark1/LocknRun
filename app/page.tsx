@@ -1,11 +1,12 @@
 "use client";
-import WalletStatus from "@/components/WalletStatus";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NameGate from "@/components/NameGate";
 import Dial from "@/components/Dial";
-import { Challenge, DEPOSITS, DURATIONS, GOAL_KMS, RUNS_REQUIRED, countedRuns, explorerAddress, money } from "@/lib/config";
+import AppShell from "@/components/AppShell";
+import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
@@ -20,20 +21,12 @@ export default function Home() {
   const [goalKm, setGoalKm] = useState(3);
   const [runsRequired, setRuns] = useState(2);
   const [deposit, setDeposit] = useState(10);
-  const [minutes, setMinutes] = useState(DURATIONS[0].minutes);
+  const [durUnit, setDurUnit] = useState(0); // index into DURATION_UNITS (0 = Min)
+  const [durValue, setDurValue] = useState(15);
+  const unit = DURATION_UNITS[durUnit];
+  const minutes = durValue * unit.minutes;
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState("");
-  const [formInView, setFormInView] = useState(false);
-
-  // Hide the phone "New challenge" button while the form itself is on screen.
-  useEffect(() => {
-    const el = document.getElementById("new");
-    if (!el || !("IntersectionObserver" in window)) return;
-    const io = new IntersectionObserver(([e]) => setFormInView(e.isIntersecting), { threshold: 0.15 });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [me]);
-
   useEffect(() => {
     let stop = false;
     async function load() {
@@ -70,49 +63,48 @@ export default function Home() {
   }
 
   if (!ready) return null;
-  const active = data.challenges.filter((c) => c.status === "active" && c.endsAt > now);
+  // Sponsored challenges are listed first.
+  const active = data.challenges
+    .filter((c) => c.status === "active" && c.endsAt > now)
+    .sort((a, b) => bonusOf(b) - bonusOf(a));
   const ended = data.challenges.filter((c) => !(c.status === "active" && c.endsAt > now));
-  const locked = data.challenges.filter((c) => c.status !== "settled").reduce((s, c) => s + c.deposit * c.participants.length, 0);
+  const locked = data.challenges.filter((c) => c.status !== "settled").reduce((s, c) => s + potOf(c), 0);
+
+  const runners = new Set(active.flatMap((c) => c.participants.map((p) => p.address))).size;
 
   return (
+    <AppShell>
     <main className="wrap">
-      <div className="top">
-        <div className="brand">
-          <span className="brand-dot" /> Lock&Run
+      <section className="hero">
+        <h1>
+          Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
+        </h1>
+        <p className="lede">
+          Put money on your running goal with friends. Everyone who finishes gets their deposit back <b>plus</b> a share of
+          the quitters&apos; money. Your wallet signs a test USDC deposit into server-managed escrow on Solana.
+        </p>
+      </section>
+
+      <div className="stats">
+        <div className="stat-tile">
+          <div className="muted small">On the line</div>
+          <div className="stat-num">{money(data.escrow.balance ?? locked)}</div>
         </div>
-        <WalletStatus />
-      </div>
-
-      <h1>
-        Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
-      </h1>
-      <p className="lede">
-        Put money on your running goal with friends. Everyone who finishes gets their deposit back <b>plus</b> a share of
-        the quitters&apos; money. Your wallet signs a test USDC deposit into server-managed escrow on Solana.
-      </p>
-
-      <div className="steps">
-        <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your 10 test USDC is locked in escrow.</div>
-        <div className="step"><b>2 · Run and prove it</b>GPS and a voice coach track every km. Add a photo or a Strava run as proof.</div>
-        <div className="step"><b>3 · Split the pot</b>Finishers split the quitters&apos; deposits, paid out in about a second.</div>
-      </div>
-
-      <div className="escrow">
-        <span>
-          <b>{money(data.escrow.balance ?? locked)}</b> on the line right now
-        </span>
-        {data.escrow.address && (
-          <a href={explorerAddress(data.escrow.address)} target="_blank" rel="noreferrer">
-            Verify on Solana ↗
-          </a>
-        )}
+        <div className="stat-tile">
+          <div className="muted small">Live</div>
+          <div className="stat-num">{active.length}</div>
+        </div>
+        <div className="stat-tile">
+          <div className="muted small">Runners in</div>
+          <div className="stat-num">{runners}</div>
+        </div>
       </div>
 
       <div className="layout">
         <section>
           <h2>Live challenges</h2>
           {active.length === 0 && <div className="empty">No live challenges yet.</div>}
-          <div className="list">
+          <div className="list cards">
             {active.map((c) => (
               <ChallengeCard key={c.id} c={c} now={now} meAddr={me?.address} />
             ))}
@@ -120,7 +112,7 @@ export default function Home() {
           {ended.length > 0 && (
             <>
               <h2 style={{ marginTop: "1.75rem" }}>Finished</h2>
-              <div className="list">
+              <div className="list cards">
                 {ended.map((c) => (
                   <ChallengeCard key={c.id} c={c} now={now} meAddr={me?.address} />
                 ))}
@@ -136,26 +128,61 @@ export default function Home() {
           <Dial label="Distance per run" options={GOAL_KMS} value={goalKm} onChange={setGoalKm} format={(v) => `${v} km`} />
           <Dial label="Runs to finish" options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} format={(v) => `${v} run${v > 1 ? "s" : ""}`} />
           <Dial label="Deposit · test USDC" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`} />
-          <label>Ends in</label>
-          <div className="chips">
-            {DURATIONS.map((d) => (
-              <button key={d.minutes} className={`chip ${d.minutes === minutes ? "on" : ""}`} onClick={() => setMinutes(d.minutes)}>
-                {d.label}
-              </button>
-            ))}
+          <div className="dial">
+            <div className="dial-head">
+              <span>Ends in</span>
+              <b>{durationLabel(minutes)}</b>
+            </div>
+            <div className="chips unit-chips">
+              {DURATION_UNITS.map((u, i) => (
+                <button
+                  key={u.key}
+                  className={`chip ${i === durUnit ? "on" : ""}`}
+                  onClick={() => {
+                    setDurUnit(i);
+                    setDurValue(u.key === "min" ? 15 : u.values[0]);
+                  }}
+                >
+                  {u.label}
+                </button>
+              ))}
+            </div>
           </div>
+          <Dial
+            key={unit.key}
+            label={`Number of ${unit.label.toLowerCase()}${unit.key === "min" ? "utes" : "s"}`}
+            options={unit.values as unknown as number[]}
+            value={durValue}
+            onChange={setDurValue}
+            format={() => durationLabel(minutes)}
+            hideHead
+          />
           <button className="btn primary block" style={{ marginTop: "1.25rem" }} disabled={creating} onClick={create}>
             {creating ? "Locking your deposit…" : `Create & lock ${money(deposit)}`}
           </button>
           <p className="muted small" style={{ textAlign: "center", margin: "8px 0 0" }}>
-            Test USDC from your connected wallet. Small devnet SOL balance required for fees. "15 min" is for demos.
+            Test USDC from your connected wallet. Small devnet SOL balance required for fees. Use 15 min for demos.
           </p>
           {err && <p className="err">{err}</p>}
         </aside>
       </div>
-      <p className="foot">Hackathon demo · Solana devnet · test money only</p>
+      <section className="steps" id="how">
+        <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your 10 test USDC is locked in escrow.</div>
+        <div className="step"><b>2 · Run and prove it</b>GPS and a voice coach track every km. Add a photo or a Strava run as proof.</div>
+        <div className="step"><b>3 · Split the pot</b>Finishers split the quitters&apos; deposits, paid out in about a second.</div>
+      </section>
 
-      {!formInView && <a href="#new" className="btn primary fab">New challenge</a>}
+      <section className="partners" aria-label="Powered by">
+        <div className="muted small">Powered by</div>
+        <div className="partner-row">
+          <div className="partner"><b>Solana</b><span>Escrow, payouts and proof stamps</span></div>
+          <div className="partner"><b>USDC</b><span>Deposits and payouts in digital dollars</span></div>
+          <div className="partner"><b>ElevenLabs</b><span>Voice coach while you run</span></div>
+          <div className="partner"><b>Strava</b><span>Import runs as proof</span></div>
+        </div>
+      </section>
+
+      <p className="foot">Hackathon demo · Solana devnet · test money only</p>
 
       {!me && (
         <NameGate
@@ -166,6 +193,7 @@ export default function Home() {
         />
       )}
     </main>
+    </AppShell>
   );
 }
 
@@ -174,19 +202,24 @@ function ChallengeCard({ c, now, meAddr }: { c: Challenge; now: number; meAddr?:
   const finishers = c.participants.filter((p) => countedRuns(p) >= c.runsRequired).length;
   const joined = c.participants.some((p) => p.address === meAddr);
   return (
-    <Link href={`/c/${c.id}`} className={`ccard ${joined ? "mine" : ""}`}>
+    <Link href={`/c/${c.id}`} className={`ccard ${joined ? "mine" : ""} ${bonusOf(c) > 0 ? "sponsored" : ""}`}>
       <div className="pot">
-        <div className="pot-amt">{money(c.deposit * c.participants.length)}</div>
+        <div className="pot-amt">{money(potOf(c))}</div>
         <div className="pot-label">pot</div>
       </div>
       <div>
+        {bonusOf(c) > 0 && (
+          <div className="sponsor-badge">
+            +{money(bonusOf(c))} bonus · Sponsored by {c.sponsors!.map((x) => x.name).join(", ")}
+          </div>
+        )}
         <div className="ctitle">{c.title}</div>
         <div className="meta">
           <span>{c.goalKm} km × {c.runsRequired}</span>
           <span>{money(c.deposit)} to join</span>
           <span>{c.participants.length} in · {finishers} finished</span>
         </div>
-        <div className="meta" style={{ marginTop: 6 }}>
+        <div className="meta" style={{ marginTop: "0.4rem" }}>
           <span className={`status ${live ? "st-open" : c.status === "settled" ? "st-done" : "st-claimed"}`}>
             {live ? timeLeft(c.endsAt, now) : c.status === "settled" ? "Paid out" : "Ended · ready to pay out"}
           </span>

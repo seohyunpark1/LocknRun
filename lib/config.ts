@@ -10,11 +10,27 @@ export const MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 export const DEPOSITS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50];
 export const GOAL_KMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 21];
 export const RUNS_REQUIRED = [1, 2, 3, 4, 5, 6, 7];
-export const DURATIONS: { label: string; minutes: number }[] = [
-  { label: "15 min", minutes: 15 },
-  { label: "1 day", minutes: 60 * 24 },
-  { label: "1 week", minutes: 60 * 24 * 7 },
-];
+// "Ends in": pick a unit, then turn the dial for the number.
+export const DURATION_UNITS = [
+  { key: "min", label: "Min", minutes: 1, values: [5, 10, 15, 20, 30, 45] },
+  { key: "hour", label: "Hour", minutes: 60, values: [1, 2, 3, 4, 5, 6, 8, 10, 12, 18] },
+  { key: "day", label: "Day", minutes: 1440, values: [1, 2, 3, 4, 5, 6] },
+  { key: "week", label: "Week", minutes: 10080, values: [1, 2, 3, 4] },
+  { key: "month", label: "Month", minutes: 43200, values: [1, 2, 3, 4, 5, 6] }, // 1 month = 30 days
+] as const;
+
+/** Every duration (in minutes) the server accepts. */
+export const DURATIONS: number[] = DURATION_UNITS.flatMap((u) => u.values.map((v) => v * u.minutes));
+
+/** Full label: 15 min, 2 hours, 3 days, 1 week, 2 months */
+export function durationLabel(min: number) {
+  const unit = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"}`;
+  if (min % 43200 === 0) return unit(min / 43200, "month");
+  if (min % 10080 === 0) return unit(min / 10080, "week");
+  if (min % 1440 === 0) return unit(min / 1440, "day");
+  if (min % 60 === 0) return unit(min / 60, "hour");
+  return `${min} min`;
+}
 
 // Anti-cheat sanity limits for a submitted run.
 export const MIN_PACE_SEC_PER_KM = 150; // faster than 2:30/km = probably a bike or car
@@ -48,6 +64,11 @@ export type Participant = {
 
 export type ChallengeStatus = "draft" | "active" | "settling" | "settled";
 
+/** A brand that added bonus money to a challenge's pot (split among finishers). */
+export type Sponsor = { address?: string; refundSig?: string; name: string; amount: number; url?: string; at: number; sig: string };
+export const SPONSOR_BONUSES = [10, 25, 50, 100];
+export const MAX_SPONSORS = 3;
+
 export type Challenge = {
   id: string;
   title: string;
@@ -60,8 +81,13 @@ export type Challenge = {
   status: ChallengeStatus;
   participants: Participant[];
   pendingDeposits?: string[];
+  sponsors?: Sponsor[];
+  sponsorRefundSig?: string; // bonus returned to sponsors when nobody finished
   settledAt?: number;
 };
+
+export const bonusOf = (c: Challenge) => (c.sponsors || []).reduce((s, x) => s + x.amount, 0);
+export const potOf = (c: Challenge) => c.deposit * c.participants.length + bonusOf(c);
 
 export function countedRuns(p: Participant) {
   return p.runs.filter((r) => r.counts).length;

@@ -113,3 +113,50 @@ test('payout retry reuses the recorded transfer and keeps its destination', asyn
   await assert.rejects(payFromEscrow('payout-test', destination, 20), /amount differs/);
   t.mock.restoreAll();
 });
+
+test('sponsor funding confirms once without registering a runner and retains refund ownership', async t => {
+  const { connection } = await import('../lib/solana-server');
+  const { prepareDeposit, confirmDeposit } = await import('../lib/deposits');
+  const { insertChallenge, getChallenge } = await import('../lib/store');
+  const { computePayouts } = await import('../lib/settle');
+  const donor = Keypair.generate();
+  t.mock.method(connection, 'getLatestBlockhash', async () => ({ blockhash: donor.publicKey.toBase58(), lastValidBlockHeight: 100 }));
+  t.mock.method(connection, 'simulateTransaction', async () => ({ value: { err: null } }));
+  t.mock.method(connection, 'getFeeForMessage', async () => ({ value: 5000 }));
+  t.mock.method(connection, 'getSignatureStatuses', async () => ({ value: [null] }));
+  const send = t.mock.method(connection, 'sendRawTransaction', async () => 'mock');
+  t.mock.method(connection, 'confirmTransaction', async () => ({ value: { err: null } }));
+  const c = { id: 'sponsor-test', title: 'Test', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: Date.now(), endsAt: Date.now() + 60_000, creatorName: 'Runner', status: 'active' as const, participants: [] };
+  await insertChallenge(c);
+  await assert.rejects(prepareDeposit(c, donor.publicKey.toBase58(), 'Brand', { amount: 999 }), /invalid/);
+  const prepared = await prepareDeposit(c, donor.publicKey.toBase58(), 'Brand', { amount: 25, url: 'https://example.com' });
+  assert.equal(prepared.summary.amount, 25);
+  assert.equal(prepared.summary.kind, 'sponsor');
+  const tx = Transaction.from(Buffer.from(prepared.transaction, 'base64'));
+  tx.sign(donor);
+  const signed = tx.serialize().toString('base64');
+  const first = await confirmDeposit(prepared.intentId, signed, donor.publicKey.toBase58());
+  assert.equal(first?.participants.length, 0);
+  assert.equal(first?.sponsors?.[0].address, donor.publicKey.toBase58());
+  assert.equal(first?.sponsors?.[0].amount, 25);
+  assert.equal(computePayouts(first!).sponsorRefund, 25);
+  await confirmDeposit(prepared.intentId, signed, donor.publicKey.toBase58());
+  assert.equal(send.mock.callCount(), 1);
+  assert.equal((await getChallenge(c.id))?.sponsors?.length, 1);
+  await assert.rejects(prepareDeposit(first!, donor.publicKey.toBase58(), 'Again', { amount: 50 }), /already sponsors/);
+  t.mock.restoreAll();
+});
+
+test('sponsor refunds and runner payouts cannot reuse each other’s transfer', async t => {
+  const { connection, payFromEscrow } = await import('../lib/solana-server');
+  const recipient = Keypair.generate().publicKey.toBase58();
+  t.mock.method(connection, 'getLatestBlockhash', async () => ({ blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: 100 }));
+  t.mock.method(connection, 'getSignatureStatuses', async () => ({ value: [null] }));
+  const send = t.mock.method(connection, 'sendRawTransaction', async () => 'mock');
+  t.mock.method(connection, 'confirmTransaction', async () => ({ value: { err: null } }));
+  const reward = await payFromEscrow('both-roles', recipient, 10);
+  const refund = await payFromEscrow('both-roles', recipient, 10, 'sponsor-refund');
+  assert.notEqual(reward, refund);
+  assert.equal(send.mock.callCount(), 2);
+  t.mock.restoreAll();
+});
