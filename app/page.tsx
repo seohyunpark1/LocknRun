@@ -77,13 +77,13 @@ export default function Home() {
     <main className="wrap">
       <div className="top">
         <div className="brand">
-          <span className="brand-dot">🏃</span> Lock&Run
+          <span className="brand-dot" /> Lock&Run
         </div>
         {me && <div className="me">{me.name}</div>}
       </div>
 
       <h1>
-        Bet on your own run. <span className="hl">Finish, and get paid.</span>
+        Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
       </h1>
       <p className="lede">
         Put money on your running goal with friends. Everyone who finishes gets their deposit back <b>plus</b> a share of
@@ -97,7 +97,6 @@ export default function Home() {
       </div>
 
       <div className="escrow">
-        <span style={{ fontSize: 20 }}>🔒</span>
         <span>
           <b>{money(data.escrow.balance ?? locked)}</b> on the line right now
         </span>
@@ -111,7 +110,7 @@ export default function Home() {
       <div className="layout">
         <section>
           <h2>Live challenges</h2>
-          {active.length === 0 && <div className="empty">No live challenges. Start one →</div>}
+          {active.length === 0 && <div className="empty">No live challenges yet.</div>}
           <div className="list">
             {active.map((c) => (
               <ChallengeCard key={c.id} c={c} now={now} meAddr={me?.address} />
@@ -183,9 +182,9 @@ function ChallengeCard({ c, now, meAddr }: { c: Challenge; now: number; meAddr?:
       <div>
         <div className="ctitle">{c.title}</div>
         <div className="meta">
-          <span>🏃 {c.goalKm} km × {c.runsRequired}</span>
-          <span>💵 {money(c.deposit)} to join</span>
-          <span>👥 {c.participants.length} in · {finishers} finished</span>
+          <span>{c.goalKm} km × {c.runsRequired}</span>
+          <span>{money(c.deposit)} to join</span>
+          <span>{c.participants.length} in · {finishers} finished</span>
         </div>
         <div className="meta" style={{ marginTop: 6 }}>
           <span className={`status ${live ? "st-open" : c.status === "settled" ? "st-done" : "st-claimed"}`}>

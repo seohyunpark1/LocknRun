@@ -187,21 +187,20 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
 
       {phase === "idle" && (
         <button className="btn primary block big" onClick={start}>
-          ▶ Start run
+          Start run
         </button>
       )}
       {phase === "running" && (
         <>
           <button className="btn go block big" onClick={finish}>
-            ■ Finish &amp; save
+            Finish &amp; save
           </button>
           <p className="muted small" style={{ textAlign: "center" }}>
-            GPS: {gps === "good" ? "🟢 locked" : gps === "weak" ? "🟡 weak signal" : gps === "off" ? "🔴 off" : "⏳ searching…"} · keep this
-            screen open while you run
+            <span className={`dot ${gps}`} /> GPS {gps === "good" ? "locked" : gps === "weak" ? "weak signal" : gps === "off" ? "off" : "searching…"} · keep this screen open while you run
           </p>
           {demo && (
             <button className="btn ghost block" onClick={simulate}>
-              + 250 m (demo mode)
+              +250 m (demo)
             </button>
           )}
         </>
@@ -209,7 +208,7 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
       {phase === "saving" && <p className="muted">Saving your run…</p>}
       {phase === "done" && result && (
         <div className={`result ${result.counts ? "ok" : "no"}`}>
-          <b>{result.counts ? "✅ Run counted!" : "⚠️ Saved, but it doesn't count"}</b>
+          <b>{result.counts ? "Run counted" : "Saved, but it doesn't count"}</b>
           {!result.counts && result.reason && <div className="small">{result.reason}</div>}
           <button className="btn block" style={{ marginTop: 10 }} onClick={() => setPhase("idle")}>
             Start another run

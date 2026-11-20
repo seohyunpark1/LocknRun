@@ -121,7 +121,7 @@ export default function ChallengePage() {
     <main className="wrap">
       <div className="top">
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>
-          <span className="brand-dot">🏃</span> Lock&Run
+          <span className="brand-dot" /> Lock&Run
         </Link>
         {me && <div className="me">{me.name}</div>}
       </div>
@@ -149,7 +149,7 @@ export default function ChallengePage() {
               setTimeout(() => setCopied(false), 1500);
             }}
           >
-            {copied ? "Link copied!" : "Invite friends 🔗"}
+            {copied ? "Link copied" : "Copy invite link"}
           </button>
         </div>
       </div>
@@ -175,7 +175,7 @@ export default function ChallengePage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                 <h2>Your run</h2>
                 <span className="muted small">
-                  {countedRuns(mine)}/{c.runsRequired} runs counted {isFinisher(c, mine) ? "· ✅ finished!" : ""}
+                  {countedRuns(mine)}/{c.runsRequired} runs counted {isFinisher(c, mine) ? "· finished" : ""}
                 </span>
               </div>
               <RunTracker goalKm={c.goalKm} demo={demo} onFinish={saveRun} />
@@ -190,7 +190,7 @@ export default function ChallengePage() {
                 the rules decide who gets what.
               </p>
               <button className="btn primary block" disabled={!!busy} onClick={() => act("settle")}>
-                {busy === "settle" ? "Paying out on Solana…" : "Pay out the pot 💸"}
+                {busy === "settle" ? "Paying out on Solana…" : "Pay out the pot"}
               </button>
             </div>
           )}
@@ -204,7 +204,7 @@ export default function ChallengePage() {
               const best = p.runs.filter((r) => r.counts).sort((a, b) => a.sec / a.km - b.sec / b.km)[0];
               return (
                 <div key={p.address} className={`lb ${p.address === me?.address ? "mine" : ""}`}>
-                  <div className="rank">{fin ? "✅" : i + 1}</div>
+                  <div className={`rank ${fin ? "fin" : ""}`}>{fin ? "✓" : i + 1}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontWeight: 800 }}>
                       <span>{p.address === me?.address ? `${p.name} (you)` : p.name}</span>
