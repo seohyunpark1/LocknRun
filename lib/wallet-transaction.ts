@@ -1,4 +1,5 @@
 import { ComputeBudgetProgram, PublicKey, TransactionInstruction, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
+import { assertEscrowInstructions, type EscrowExpectation } from './escrow-ix';
 import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from '@solana/spl-token';
 
 export const WALLET_USDC_MINT = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
@@ -18,6 +19,17 @@ function sameInstruction(actual: TransactionInstruction, expected: TransactionIn
   // Compilation upgrades shared account flags across instructions, so compare keys/order/data here;
   // signer and writable permissions are separately checked across the complete message below.
   return actual.programId.equals(expected.programId) && equalBytes(actual.data, expected.data) && actual.keys.length === expected.keys.length && actual.keys.every((k, i) => k.pubkey.equals(expected.keys[i].pubkey));
+}
+/** Check the bytes handed to the wallet for a deposit into the escrow program: one signer, nothing pre-signed, exact instructions. */
+export function inspectEscrowTransaction(bytes: Uint8Array, want: EscrowExpectation) {
+  const tx = VersionedTransaction.deserialize(bytes);
+  if (tx.version !== 0 || tx.message.addressTableLookups.length) throw new Error('Unsupported wallet transaction format.');
+  if (tx.message.header.numRequiredSignatures !== 1 || !tx.message.staticAccountKeys[0].equals(want.user)) throw new Error('Unexpected transaction signers or fee payer.');
+  if (tx.signatures.some(sig => sig.some(v => v !== 0))) throw new Error('Wallet approval must happen before other signatures are added.');
+  let instructions = TransactionMessage.decompile(tx.message).instructions;
+  if (instructions.length >= 2 && isBudgetInstruction(instructions[0], 2) && isBudgetInstruction(instructions[1], 4)) instructions = instructions.slice(2);
+  assertEscrowInstructions(instructions, want);
+  return tx;
 }
 /** Independently check the bytes handed to the wallet, rather than trusting a display label. */
 export function inspectWalletTransfer(bytes: Uint8Array, expected: { from: string; to: string; amount: number; feePayer: string; sponsored?: boolean }) {

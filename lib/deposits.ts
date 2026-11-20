@@ -6,7 +6,8 @@ import { depositSimulationMessage } from './simulation-error';
 import { createHash } from 'node:crypto';
 import { PublicKey, VersionedTransaction, TransactionInstruction } from '@solana/web3.js';
 import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from '@solana/spl-token';
-import { connection, escrowAddress } from './solana-server';
+import { connection, escrowAddress, sponsorAddress } from './solana-server';
+import { ESCROW_PROGRAM_ID, MODE_FRACTION, MODE_POOL, TIMEOUT_SECS, createRoomIx, fundSponsorIx, joinRoomIx, roomPda, vaultPda } from './escrow-ix';
 import { MEMO_PROGRAM_ID, USDC_DECIMALS, USDC_MINT, Challenge, MAX_SPONSORS, SPONSOR_BONUSES } from './config';
 import { getChallenge, mutate, kvGet, kvSet, acquireLock, releaseLock } from './store';
 
@@ -24,16 +25,28 @@ export async function prepareDeposit(c: Challenge, address: string, name: string
   if (!['draft', 'active'].includes(c.status) || Date.now() >= c.endsAt) throw new Error('Challenge is closed.');
   await assertDevnet(connection);
   const owner = new PublicKey(address);
-  const recipient = escrowAddress();
+  const onchain = c.escrow === 'program';
+  const recipient = onchain ? vaultPda(roomPda(c.id)).toBase58() : escrowAddress();
   if (!recipient) throw new Error('Escrow is not configured.');
   if (recipient === address) throw new Error('The escrow wallet cannot join.');
   const mint = new PublicKey(USDC_MINT), to = new PublicKey(recipient);
   const lifetime = await connection.getLatestBlockhash('confirmed');
-  const { tx, simulation } = await buildSimulatedTransaction(owner, [
-    createAssociatedTokenAccountIdempotentInstruction(owner, getAssociatedTokenAddressSync(mint, to, true), to, mint),
-    createTransferCheckedInstruction(getAssociatedTokenAddressSync(mint, owner), mint, getAssociatedTokenAddressSync(mint, to, true), owner, BigInt(amount * 10 ** USDC_DECIMALS), USDC_DECIMALS),
-    new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|${kind}|${c.id}|${address}`) })
-  ], lifetime.blockhash);
+  const micro = BigInt(Math.round(amount * 10 ** USDC_DECIMALS));
+  const userToken = getAssociatedTokenAddressSync(mint, owner);
+  const creating = onchain && !funding && c.status === 'draft' && c.participants.length === 0;
+  const core = onchain
+    ? funding
+      ? [fundSponsorIx({ funder: owner, challengeId: c.id, funderToken: userToken, amount: micro })]
+      : [
+          ...(creating ? [createRoomIx({ creator: owner, mint, challengeId: c.id, stake: micro, mode: c.rewardMode === 'fraction' ? MODE_FRACTION : MODE_POOL, endsAt: Math.ceil(c.endsAt / 1000), timeoutSecs: TIMEOUT_SECS, verifier: new PublicKey(sponsorAddress()), feeRecipient: new PublicKey(sponsorAddress()) })] : []),
+          joinRoomIx({ user: owner, challengeId: c.id, mint, userToken }),
+        ]
+    : [
+        createAssociatedTokenAccountIdempotentInstruction(owner, getAssociatedTokenAddressSync(mint, to, true), to, mint),
+        createTransferCheckedInstruction(userToken, mint, getAssociatedTokenAddressSync(mint, to, true), owner, micro, USDC_DECIMALS),
+        new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|${kind}|${c.id}|${address}`) })
+      ];
+  const { tx, simulation } = await buildSimulatedTransaction(owner, core, lifetime.blockhash);
   if (simulation.value.err) {
     console.error('deposit_simulation_failed', { challengeId: c.id, address, mint: USDC_MINT, amount, sourceTokenAccount: getAssociatedTokenAddressSync(mint, owner).toBase58(), error: simulation.value.err, logs: simulation.value.logs || [] });
     throw new Error(depositSimulationMessage(simulation.value.err, simulation.value.logs || []));
@@ -45,7 +58,7 @@ export async function prepareDeposit(c: Challenge, address: string, name: string
   const id = createHash('sha256').update(message).digest('hex');
   const intent: Intent = { kind, amount, url: funding?.url, logo: funding?.logo, tagline: funding?.tagline, challengeId: c.id, address, name, transaction, message, ...lifetime };
   await kvSet(`deposit:${id}`, intent);
-  return { intentId: id, transaction, summary: { kind, amount, recipient, mint: USDC_MINT, feeSol: fee.value / 1e9, feePayer: address, network: 'Solana Devnet', simulation: 'passed', transactionVersion: 0, preparedAt: Date.now(), minContextSlot: simulation.context?.slot } };
+  return { intentId: id, transaction, summary: { kind, amount, recipient, mint: USDC_MINT, feeSol: fee.value / 1e9, feePayer: address, network: 'Solana Devnet', simulation: 'passed', transactionVersion: 0, preparedAt: Date.now(), minContextSlot: simulation.context?.slot, ...(onchain ? { escrow: { program: ESCROW_PROGRAM_ID.toBase58(), challengeId: c.id, action: funding ? 'sponsor' : creating ? 'create' : 'join', mode: c.rewardMode === 'fraction' ? MODE_FRACTION : MODE_POOL } } : {}) } };
 }
 export function validateSignedDeposit(serialized: string, expectedMessage: string, address: string) {
   const tx = VersionedTransaction.deserialize(Buffer.from(serialized, 'base64'));

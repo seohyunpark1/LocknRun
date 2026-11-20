@@ -5,18 +5,20 @@ import type { Wallet, WalletAccount } from '@wallet-standard/base';
 import type { StandardConnectFeature, StandardDisconnectFeature, StandardEventsFeature } from '@wallet-standard/features';
 import type { SolanaSignMessageFeature, SolanaSignTransactionFeature } from '@solana/wallet-standard-features';
 import bs58 from 'bs58';
-import { inspectWalletTransfer, equalBytes, WALLET_USDC_MINT } from '@/lib/wallet-transaction';
-import { VersionedTransaction } from '@solana/web3.js';
+import { inspectWalletTransfer, inspectEscrowTransaction, equalBytes, WALLET_USDC_MINT } from '@/lib/wallet-transaction';
+import { ESCROW_PROGRAM_ID } from '@/lib/escrow-ix';
+import { getAssociatedTokenAddressSync } from '@solana/spl-token';
+import { PublicKey, VersionedTransaction } from '@solana/web3.js';
 export type Me = { name: string; address: string };
 type ConnectedWallet = Wallet & { features: StandardConnectFeature & StandardDisconnectFeature & StandardEventsFeature & SolanaSignMessageFeature & SolanaSignTransactionFeature };
-type Prepared = { intentId: string; transaction: string; summary: { kind?: "join" | "sponsor"; amount: number; mint: string; recipient: string; feeSol: number; feePayer: string; network: string; transactionVersion: number; minContextSlot?: number; preparedAt: number } };
+type Prepared = { intentId: string; transaction: string; summary: { kind?: "join" | "sponsor"; amount: number; mint: string; recipient: string; feeSol: number; feePayer: string; network: string; transactionVersion: number; minContextSlot?: number; preparedAt: number; escrow?: { program: string; challengeId: string; action: 'create' | 'join' | 'sponsor'; mode: number } } };
 const Context = createContext<{
   me: Me | null; ready: boolean; wallets: Wallet[];
   join: (name: string, wallet?: Wallet) => Promise<void>;
   disconnect: () => Promise<void>;
   deposit: (prepared: Prepared) => Promise<any>;
   retryDeposit: () => Promise<any>;
-  signTransfer: (transaction: string, expected: { from: string; to: string; amount: number; feePayer: string }) => Promise<string>;
+  signTransfer: (transaction: string, expected: { from: string; to: string; amount: number; feePayer: string } | ((bytes: Uint8Array) => VersionedTransaction)) => Promise<string>;
   signWithdrawal: (transaction: string, amount: number, to: string, feePayer: string) => Promise<{ signedTransaction: string; intentId: string }>;
   pending: boolean;
 }>(null!);
@@ -80,10 +82,10 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     sessionStorage.removeItem('lockrun.deposit'); setPending(false);
     return data;
   }
-  async function signReviewedTransfer(transaction: string, expected: { from: string; to: string; amount: number; feePayer: string }, minContextSlot?: number) {
+  async function signReviewedTransfer(transaction: string, expected: { from: string; to: string; amount: number; feePayer: string } | ((bytes: Uint8Array) => VersionedTransaction), minContextSlot?: number) {
     if (!connected || !me) throw new Error('Connect your wallet first.');
     const bytes = Uint8Array.from(atob(transaction), c => c.charCodeAt(0));
-    const parsed = inspectWalletTransfer(bytes, expected);
+    const parsed = typeof expected === 'function' ? expected(bytes) : inspectWalletTransfer(bytes, expected);
     const feature = connected.wallet.features['solana:signTransaction'];
     if (!feature.supportedTransactionVersions.includes(parsed.version)) throw new Error('This wallet does not support the required v0 transaction format.');
     const [signed] = await feature.signTransaction({ account: connected.account, chain: 'solana:devnet', transaction: bytes, options: { preflightCommitment: 'confirmed', ...(minContextSlot === undefined ? {} : { minContextSlot }) } });
@@ -110,12 +112,17 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     const s = prepared.summary;
     if (s.mint !== WALLET_USDC_MINT || s.network !== 'Solana Devnet') throw new Error('This demo only supports Circle USDC on Solana Devnet.');
     if (s.feePayer !== me.address) throw new Error('Wallet changed. Start again.');
-    if (!window.confirm(`Lock ${s.amount} USDC${s.kind === "sponsor" ? " as a sponsor bonus" : ""}\nNetwork: ${s.network}\nUSDC mint: ${s.mint}\nRecipient (server-managed escrow): ${s.recipient}\nFee payer: ${s.feePayer}\nNetwork fee: ${s.feeSol} SOL, plus token account rent if needed\nSimulation passed.\n${s.kind === "sponsor" ? "Bonus is split among finishers; a zero-finisher refund returns to" : "Rewards return to"} ${me.address}.\n\nContinue to your wallet to approve?`)) throw new Error('Deposit cancelled. No transaction signed.');
+    if (!window.confirm(`Lock ${s.amount} USDC${s.kind === "sponsor" ? " as a sponsor bonus" : ""}\nNetwork: ${s.network}\nUSDC mint: ${s.mint}\n${s.escrow ? 'Recipient (escrow program vault)' : 'Recipient (server-managed escrow)'}: ${s.recipient}${s.escrow ? `\nEscrow program: ${s.escrow.program}` : ''}\nFee payer: ${s.feePayer}\nNetwork fee: ${s.feeSol} SOL, plus token account rent if needed\nSimulation passed.\n${s.kind === "sponsor" ? "Bonus is split among finishers; a zero-finisher refund returns to" : "Rewards return to"} ${me.address}.\n\nContinue to your wallet to approve?`)) throw new Error('Deposit cancelled. No transaction signed.');
     const response = await fetch('/api/deposits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'refresh', intentId: prepared.intentId }) });
     const fresh: Prepared & { error?: string } = await response.json();
     if (!response.ok) throw new Error(fresh.error || 'Could not refresh deposit.');
     if (fresh.summary.kind !== s.kind || fresh.summary.amount !== s.amount || fresh.summary.recipient !== s.recipient || fresh.summary.feePayer !== s.feePayer || fresh.summary.mint !== s.mint || fresh.summary.network !== s.network) throw new Error('Deposit terms changed. Review the deposit again.');
-    const signedTransaction = await signReviewedTransfer(fresh.transaction, { from: me.address, to: s.recipient, amount: s.amount, feePayer: me.address }, fresh.summary.minContextSlot);
+    const e = fresh.summary.escrow;
+    if (e && (e.program !== ESCROW_PROGRAM_ID.toBase58() || e.action !== s.escrow?.action || e.challengeId !== s.escrow?.challengeId)) throw new Error('Escrow program changed. Review the deposit again.');
+    const signedTransaction = e
+      // Escrow program deposit: the browser re-derives every account and checks every instruction byte-for-byte.
+      ? await signReviewedTransfer(fresh.transaction, bytes => inspectEscrowTransaction(bytes, { kind: e.action, user: new PublicKey(me.address), challengeId: e.challengeId, mint: new PublicKey(WALLET_USDC_MINT), userToken: getAssociatedTokenAddressSync(new PublicKey(WALLET_USDC_MINT), new PublicKey(me.address)), amount: BigInt(Math.round(s.amount * 1e6)), mode: e.mode }), fresh.summary.minContextSlot)
+      : await signReviewedTransfer(fresh.transaction, { from: me.address, to: s.recipient, amount: s.amount, feePayer: me.address }, fresh.summary.minContextSlot);
     sessionStorage.setItem('lockrun.deposit', JSON.stringify({ intentId: fresh.intentId, signedTransaction, address: me.address }));
     setPending(true);
     return retryDeposit();

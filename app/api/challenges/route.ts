@@ -75,6 +75,7 @@ export async function POST(req: Request) {
       endsAt: now + minutes * 60_000,
       creatorName: name,
       timeZone,
+      ...(process.env.ESCROW_MODE === "program" ? { escrow: "program" as const } : {}),
       rewardMode: b.rewardMode === "fraction" ? "fraction" : "pool",
       visibility: b.visibility === "private" ? "private" : "public",
       ...(b.visibility === "private" ? { inviteCode: newInviteCode() } : {}),

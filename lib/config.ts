@@ -144,6 +144,7 @@ export type Challenge = {
   endsAt: number;
   creatorName: string;
   timeZone?: string; // IANA zone that defines room days; displayed before joining
+  escrow?: "program"; // funds sit in the lockrun_escrow program vault; missing = legacy server-held escrow
   rewardMode?: RewardMode; // how the pool is shared; missing = "pool"
   visibility?: Visibility; // missing = public
   inviteCode?: string; // private challenges: the secret in the invite link; only participants ever see it

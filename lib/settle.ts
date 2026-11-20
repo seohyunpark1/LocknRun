@@ -10,6 +10,11 @@ const micro = (usdc: number) => Math.round(usdc * UNIT);
 /** pool mode: finished | forfeited | refund. fraction mode: finished (100%) | safe (85–99%) | partial (below 85%) | refund. */
 export type Tier = "finished" | "forfeited" | "refund" | "safe" | "partial";
 export const SAFE_RATE = 0.85; // fraction mode: 85%+ gets the full stake back
+const SAFE_BPS = 8_500;
+/** Completion in basis points, rounded down: the value recorded on-chain for each participant. */
+export function rateBps(c: Challenge, p: Participant) {
+  return Math.floor((Math.min(countedRuns(p), c.runsRequired) * 10_000) / c.runsRequired);
+}
 export type Payout = { address: string; name: string; amount: number; finisher: boolean; tier: Tier; rate: number };
 
 /** Share of required qualifying runs completed, 0 to 1. */
@@ -40,33 +45,34 @@ export function computePayouts(c: Challenge): Result {
  * to the sponsors. Whole cents, rounded down; leftover cents stay in escrow. No platform fee in this mode.
  */
 function computeFractionPayouts(c: Challenge): Result {
-  const D = Math.round(c.deposit * 100);
-  const bonus = bonusOf(c);
-  const pot = c.participants.length * c.deposit + bonus;
+  const D = micro(c.deposit);
+  const B = micro(bonusOf(c));
+  const N = c.participants.length;
+  const pot = (N * D + B) / UNIT;
   const rows = c.participants.map((p) => {
     const rate = achievement(c, p);
-    return { p, rate, tier: (rate >= 1 ? "finished" : rate >= SAFE_RATE ? "safe" : "partial") as Tier };
+    const bps = rateBps(c, p);
+    return { p, rate, bps, tier: (bps >= 10_000 ? "finished" : bps >= SAFE_BPS ? "safe" : "partial") as Tier };
   });
-  const winners = rows.filter((r) => r.tier === "finished").length;
-  if (winners === 0) {
+  const W = rows.filter((r) => r.tier === "finished").length;
+  if (W === 0) {
     const payouts = rows.map(({ p, rate }) => ({ address: p.address, name: p.name, amount: c.deposit, finisher: false, tier: "refund" as Tier, rate }));
-    return { payouts, pot, fee: 0, leftover: 0, sponsorRefund: bonus, prizePerWinner: 0 };
+    return { payouts, pot, fee: 0, leftover: 0, sponsorRefund: B / UNIT, prizePerWinner: 0 };
   }
-  let prizeCents = Math.round(bonus * 100);
-  const backCents = rows.map(({ rate, tier }) => {
+  let extra = B;
+  const back = rows.map(({ tier, bps }) => {
     if (tier !== "partial") return D;
-    const back = Math.floor(D * rate);
-    prizeCents += D - back;
-    return back;
+    const b = Math.floor((D * bps) / 10_000);
+    extra += D - b;
+    return b;
   });
-  const shareCents = Math.floor(prizeCents / winners);
+  const share = Math.floor(extra / W);
   const payouts = rows.map(({ p, rate, tier }, i) => ({
-    address: p.address, name: p.name,
-    amount: (backCents[i] + (tier === "finished" ? shareCents : 0)) / 100,
+    address: p.address, name: p.name, amount: (back[i] + (tier === "finished" ? share : 0)) / UNIT,
     finisher: tier === "finished", tier, rate,
   }));
-  const paid = payouts.reduce((sum, x) => sum + Math.round(x.amount * 100), 0);
-  return { payouts, pot, fee: 0, leftover: (Math.round(pot * 100) - paid) / 100, sponsorRefund: 0, prizePerWinner: shareCents / 100 };
+  const paid = payouts.reduce((sum, x) => sum + micro(x.amount), 0);
+  return { payouts, pot, fee: 0, leftover: (N * D + B - paid) / UNIT, sponsorRefund: 0, prizePerWinner: share / UNIT };
 }
 
 /**

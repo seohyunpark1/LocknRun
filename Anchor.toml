@@ -19,4 +19,9 @@ cluster = "localnet"
 wallet = "~/.config/solana/practice-wallet.json"
 
 [scripts]
-test = "node --import tsx --test anchor-tests/escrow.test.ts"
+test = "node --conditions=react-server --import tsx --test anchor-tests/escrow.test.ts anchor-tests/app-flow.test.ts"
+
+# Localnet stand-in for Circle's devnet USDC mint (same address, test-only mint authority in anchor-tests/test-authority.json)
+[[test.validator.account]]
+address = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+filename = "anchor-tests/usdc-mint.json"

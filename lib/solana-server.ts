@@ -75,6 +75,8 @@ export async function payFromEscrow(challengeId: string, to: string, amount: num
 }
 
 /** Legacy demo bonuses came from the configured sponsor; new bonuses record their actual funding wallet. */
+/** The server wallet that acts as room verifier and payer for payout cranks on escrow-program challenges. */
+export const verifierKeypair = () => sponsor();
 export function sponsorAddress() { return sponsor().publicKey.toBase58(); }
 
 /**

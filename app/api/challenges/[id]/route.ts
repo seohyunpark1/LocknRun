@@ -8,6 +8,7 @@ import { getRun, stravaEnabled } from "@/lib/strava";
 import { canView, inviteMatches, isMember, viewFor } from "@/lib/access";
 import { isPrivate } from "@/lib/config";
 import { isMobileRequest } from "@/lib/device";
+import { settleOnchain } from "@/lib/escrow-settle";
 import { payFromEscrow, sponsorAddress, stampProof } from "@/lib/solana-server";
 import { computePayouts } from "@/lib/settle";
 import { acquireLock, getChallenge, kvGet, kvSet, mutate, newId, releaseLock, savePhoto } from "@/lib/store";
@@ -273,6 +274,21 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         if (c.status === "settled") return NextResponse.json({ challenge: c });
 
         const { payouts } = computePayouts(c);
+        if (c.escrow === "program") {
+          // Funds sit in the escrow program's vault: the program computes and enforces every amount.
+          await settleOnchain(c, {
+            shouldClaim: (wallet) => (payouts.find((x) => x.address === wallet)?.amount || 0) > 0,
+            onPaid: async (wallet, sig) => { await mutate(id, (x) => { const y = x.participants.find((z) => z.address === wallet)!; y.paySig = sig; }); },
+            onSponsorReturned: async (funder, sig) => { await mutate(id, (x) => { const s = x.sponsors?.find((z) => z.address === funder); if (s) s.refundSig = sig; }); },
+          });
+          const updated = await mutate(id, (x) => {
+            for (const po of payouts) x.participants.find((y) => y.address === po.address)!.payout = po.amount;
+            x.sponsorRefundSig = x.sponsors?.find((s) => s.refundSig)?.refundSig;
+            x.status = "settled";
+            x.settledAt = Date.now();
+          });
+          return NextResponse.json({ challenge: updated });
+        }
         for (const po of payouts) {
           const fresh = (await getChallenge(id))!;
           const p = fresh.participants.find((x) => x.address === po.address)!;
