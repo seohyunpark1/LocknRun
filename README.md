@@ -4,6 +4,30 @@
 
 Next.js running challenge prototype on **Solana Devnet**, using **test USDC**. The planning specification is preserved in [LocknRun_Basic_Structure.md](LocknRun_Basic_Structure.md). It describes the intended MVP; the comparison below records what this repository actually implements.
 
+## Solana: program IDs and how this project uses Solana
+
+All of it runs on **Solana Devnet** (devnet is fine for this submission).
+
+| Program / account | Address | Role |
+|---|---|---|
+| **`lockrun_escrow`** (our Anchor program) | [`DNCsEVz5mRUwJTKpXE1z478PSxKSrRVVW2GMAr3ByDAj`](https://explorer.solana.com/address/DNCsEVz5mRUwJTKpXE1z478PSxKSrRVVW2GMAr3ByDAj?cluster=devnet) | Per-challenge USDC vault, verifier-submitted results, program-computed payouts and refunds. Source: [`programs/lockrun_escrow`](programs/lockrun_escrow). |
+| SPL Token program | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` | Every USDC transfer, including the vault's CPI payouts |
+| Associated Token Account program | `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL` | Runners' and the vault-fee recipient's USDC accounts |
+| Memo program | `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr` | Stamps each check-in's fingerprint on-chain; labels legacy deposits |
+| Compute Budget program | `ComputeBudget111111111111111111111111111111` | Explicit compute-unit and loaded-data limits on every wallet transaction |
+| System program | `11111111111111111111111111111111` | Creating the room, vault and participant accounts |
+| USDC mint (Circle, Devnet) | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` | The only token the app accepts |
+| Legacy server escrow wallet | `EuaomQ2XBp9R28m827rMAXwmoYqEvQzyYoZMCUbGm8UT` | Holds stakes of challenges created without the program (see below) |
+
+Deployment: program deployed to Devnet in transaction [`5jWPrpazPtqBUoq8749Fwy8tz4VhJcPaEWPEavHHF7QCupDja7EXibGcQ4cn4DgdCnKmJJzSp8HYfLwn7YJZYPk2`](https://explorer.solana.com/tx/5jWPrpazPtqBUoq8749Fwy8tz4VhJcPaEWPEavHHF7QCupDja7EXibGcQ4cn4DgdCnKmJJzSp8HYfLwn7YJZYPk2?cluster=devnet); the on-chain binary was verified byte-for-byte against the local build. Upgrade authority: `3tCjQZWw3vqJ4pWn273N9iZSRFKVa8YsyF9EG66MihfA` (a development wallet).
+
+**Which escrow a challenge uses.** The program is **opt-in per deployment**: a server with `ESCROW_MODE=program` creates every new challenge as an on-chain room. Without it (the current production setting), new challenges use the earlier server-held escrow wallet (a normal SPL transfer into one wallet, with payouts signed by the server). Both are in this repository; challenges remember which one they use.
+
+**Honest status.** The program has **not been audited**, and at the time of writing the only Devnet transactions on its address are its deployment: the end-to-end behavior (create, join, sponsor, record, finalize, claim, refund, fee) is verified on a local validator (`anchor test`), not yet by live Devnet room transactions. Live QuickNode Streams indexing is not built.
+
+### In short
+Solana holds the money and enforces the payout rules. Friends stake USDC into a vault owned by a program-derived address (no person or server wallet owns it); when the challenge ends, a verifier says who finished and the program alone computes and pays the rewards, the 5% fee on forfeited stakes, or full refunds if nobody finished or the result never arrives. Low fees and about one-second settlement make small stakes and per-run proofs practical; USDC keeps amounts in dollars; Wallet Standard wallets (Phantom, Solflare) sign one clearly previewed transaction. Details follow in "How we use Solana".
+
 ## Wallet deposits and rewards
 
 1. Open the site with a Wallet Standard compatible Solana wallet, such as Phantom or Solflare. On mobile, use the wallet's in-app browser. A regular mobile browser without an exposed wallet will show installation/open-in-wallet guidance.
@@ -66,15 +90,6 @@ npm run build
 ```
 
 Tests use ephemeral fixture keys and mocked RPC responses; they do not send funds. Coverage includes ownership/nonce replay, transaction tampering, failed simulation, confirmation retries, fixed receiving addresses and lock ownership. Live wallet prompts, actual devnet deposits/rewards, and mobile wallet browsers still require a funded-device integration check.
-
-## Solana addresses
-
-- Network: Solana Devnet.
-- Token program: `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA`.
-- Associated Token Account program: `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`.
-- Memo program: `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`.
-- Escrow address: read from the actual configured server wallet and shown on the home page with an explorer link.
-- Custom Anchor program: `lockrun_escrow`, ID `DNCsEVz5mRUwJTKpXE1z478PSxKSrRVVW2GMAr3ByDAj` (source in `programs/lockrun_escrow`, branch `anchor-escrow`). Deployed to Solana Devnet ([explorer](https://explorer.solana.com/address/DNCsEVz5mRUwJTKpXE1z478PSxKSrRVVW2GMAr3ByDAj?cluster=devnet)); the on-chain binary was verified byte-for-byte against the local build. Upgrade authority: `3tCjQZWw3vqJ4pWn273N9iZSRFKVa8YsyF9EG66MihfA` (a development wallet). Challenges use it only when the server runs with `ESCROW_MODE=program`; all others keep the server-held escrow.
 
 ## How we use Solana
 
