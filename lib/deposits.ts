@@ -1,4 +1,5 @@
 import 'server-only';
+import { depositSimulationMessage } from './simulation-error';
 import { createHash } from 'node:crypto';
 import { PublicKey, Transaction, TransactionInstruction } from '@solana/web3.js';
 import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from '@solana/spl-token';
@@ -30,7 +31,10 @@ export async function prepareDeposit(c: Challenge, address: string, name: string
     new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|${kind}|${c.id}|${address}`) })
   );
   const simulation = await connection.simulateTransaction(tx);
-  if (simulation.value.err) throw new Error('Deposit simulation failed. Check your devnet USDC and SOL balances.');
+  if (simulation.value.err) {
+    console.error('deposit_simulation_failed', { challengeId: c.id, address, mint: USDC_MINT, amount, sourceTokenAccount: getAssociatedTokenAddressSync(mint, owner).toBase58(), error: simulation.value.err, logs: simulation.value.logs || [] });
+    throw new Error(depositSimulationMessage(simulation.value.err, simulation.value.logs || []));
+  }
   const fee = await connection.getFeeForMessage(tx.compileMessage(), 'confirmed');
   if (fee.value === null) throw new Error('Fee estimate unavailable. Please retry.');
   const transaction = tx.serialize({ requireAllSignatures: false, verifySignatures: false }).toString('base64');

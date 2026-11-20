@@ -75,8 +75,8 @@ test('failed simulation returns no deposit to sign', async t => {
   const { prepareDeposit } = await import('../lib/deposits');
   const owner = Keypair.generate();
   t.mock.method(connection, 'getLatestBlockhash', async () => ({ blockhash: owner.publicKey.toBase58(), lastValidBlockHeight: 100 }));
-  t.mock.method(connection, 'simulateTransaction', async () => ({ value: { err: { InsufficientFundsForFee: null } } }));
-  await assert.rejects(prepareDeposit({ id: 'failed', title: 'Test', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: Date.now(), endsAt: Date.now() + 60_000, creatorName: 'Runner', status: 'active', participants: [] }, owner.publicKey.toBase58(), 'Runner'), /simulation failed/);
+  t.mock.method(connection, 'simulateTransaction', async () => ({ value: { err: 'InsufficientFundsForFee' } }));
+  await assert.rejects(prepareDeposit({ id: 'failed', title: 'Test', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: Date.now(), endsAt: Date.now() + 60_000, creatorName: 'Runner', status: 'active', participants: [] }, owner.publicKey.toBase58(), 'Runner'), /Devnet SOL/);
   t.mock.restoreAll();
 });
 
@@ -215,4 +215,13 @@ test('Vercel without shared storage reports setup failure instead of a disconnec
   } finally {
     if (previous === undefined) delete process.env.VERCEL; else process.env.VERCEL = previous;
   }
+});
+
+test('simulation diagnostics distinguish token funds, SOL fees, and unrelated program failures', async () => {
+  const { depositSimulationMessage } = await import('../lib/simulation-error');
+  assert.match(depositSimulationMessage('InsufficientFundsForFee'), /Devnet SOL/);
+  assert.match(depositSimulationMessage({ InstructionError: [1, { Custom: 1 }] }, ['Program log: Error: insufficient funds']), /Devnet USDC/);
+  assert.match(depositSimulationMessage({ InstructionError: [1, 'InvalidAccountData'] }, ['Program log: Error: InvalidAccountData']), /token account/);
+  assert.match(depositSimulationMessage('BlockhashNotFound'), /blockhash/);
+  assert.doesNotMatch(depositSimulationMessage({ InstructionError: [0, 'IncorrectProgramId'] }), /enough|balance/);
 });
