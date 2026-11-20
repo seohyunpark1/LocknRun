@@ -1,6 +1,7 @@
 import WalletProvider from "@/components/WalletProvider";
 import "./globals.css";
 import "./polish.css";
+import "./theme.css";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
@@ -24,7 +25,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover", // use the full screen on notched phones when installed
-  themeColor: "#e6f9ec",
+  themeColor: "#0f1110",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

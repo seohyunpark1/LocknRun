@@ -1,0 +1,295 @@
+/*
+ * Lock&Run "Race night" theme: asphalt, chalk and one hi-vis Volt accent, with
+ * race-clock numerals in Barlow Condensed. Loaded after globals.css and polish.css and
+ * only overrides them, so the shared stylesheet stays untouched (fewer merge conflicts).
+ *
+ * Palette            Type
+ *   Asphalt #0F1110    Barlow Condensed 600-800: headlines and every number (tabular)
+ *   Track   #181B19    Barlow 400-700: everything else
+ *   Lane    #2A2F2B
+ *   Chalk   #F2F4EE    One bold move: the numbers. Pot, progress and pace read like a
+ *   Gravel  #A3AAA1    finish-line clock; progress bars are Volt lanes. Everything else
+ *   Volt    #D4FF3A    is flat and quiet: no gradients, no soft shadows.
+ *   Flare   #FF8A3D (streaks only)
+ * Fonts: Barlow by The Barlow Project Authors, SIL Open Font License (public/fonts/OFL-Barlow.txt).
+ */
+
+@font-face { font-family: "Barlow"; font-style: normal; font-weight: 400; font-display: swap; src: url("/fonts/barlow-latin-400-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-style: normal; font-weight: 500; font-display: swap; src: url("/fonts/barlow-latin-500-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/barlow-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/barlow-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 600; font-display: swap; src: url("/fonts/barlow-condensed-latin-600-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 700; font-display: swap; src: url("/fonts/barlow-condensed-latin-700-normal.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-style: normal; font-weight: 800; font-display: swap; src: url("/fonts/barlow-condensed-latin-800-normal.woff2") format("woff2"); }
+
+/* ---------------- Tokens ---------------- */
+:root {
+  --asphalt: #0f1110;
+  --track: #181b19;
+  --raised: #202421;
+  --well: #131614;
+  --volt: #d4ff3a;
+  --volt-wash: rgba(212, 255, 58, .08);
+  --volt-edge: rgba(212, 255, 58, .38);
+  --flare: #ff8a3d;
+  --amber: #ffd166;
+  --amber-wash: rgba(255, 196, 0, .1);
+  --amber-edge: rgba(255, 196, 0, .32);
+  --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+
+  --bg: var(--track);
+  --ink: #f2f4ee;
+  --muted: #a3aaa1;
+  --faint: #8b938a;
+  --line: #2a2f2b;
+  --soft: var(--raised);
+  --green: var(--volt);
+  --green-dark: var(--volt);
+  --green-grad: linear-gradient(var(--volt), var(--volt));
+  --page-grad: linear-gradient(var(--asphalt), var(--asphalt));
+  --card-shadow: none;
+  --red: #ff7a6e;
+  --radius: 0.875rem;
+  color-scheme: dark;
+}
+html { background: var(--asphalt); }
+body { font-family: "Barlow", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); font-feature-settings: "tnum" 0; }
+::selection { background: var(--volt); color: var(--asphalt); }
+:where(a, button, input, select, textarea, [tabindex]):focus-visible { outline-color: var(--volt); }
+
+/* ---------------- Type: race-clock numerals and poster headlines ---------------- */
+h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 0.92;
+  font-size: clamp(2.6rem, 1.4rem + 5vw, 4.4rem);
+}
+.hero h1 { font-size: clamp(2.9rem, 1.5rem + 6vw, 5.2rem); }
+h2 { font-family: var(--display); font-weight: 700; font-size: 1.3rem; letter-spacing: 0; }
+.ctitle, .brand, .feed-head h2, .today-text b, .shop-name, .reward-name, .rank-who b, .side-me-name, .celebrate-title {
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: 0.005em;
+}
+.ctitle { font-size: 1.3rem; }
+.brand { font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.celebrate-title { font-size: clamp(1.7rem, 1.2rem + 2vw, 2.1rem); text-transform: uppercase; }
+.pot-amt, .stat-num, .side-amt, .celebrate-amt, .streak-num, .shop-price, .rank-km b, .today-count b, .lb-count,
+.cash-bal b, .earn-amt b, .toast-big, .tk-big, .type-value, .dial-head b, .sponsor-amt, .rank-pos {
+  font-family: var(--display);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.potbox .pot-amt { font-size: clamp(3.4rem, 2rem + 6vw, 5rem) !important; font-weight: 800; line-height: 0.9; }
+.pot-amt { font-size: clamp(1.7rem, 1.2rem + 1.6vw, 2.1rem); line-height: 0.95; }
+.stat-num { font-size: clamp(1.9rem, 1.3rem + 2vw, 2.6rem); line-height: 1; }
+.side-amt { font-size: 2.4rem; line-height: 1; }
+.tk-big { font-size: clamp(2.4rem, 1.4rem + 5vw, 3.6rem); }
+.celebrate-amt { font-size: clamp(4rem, 2.5rem + 9vw, 5.6rem); font-weight: 800; letter-spacing: -0.01em; }
+.unit { font-family: "Barlow", system-ui, sans-serif; font-weight: 600; letter-spacing: 0.04em; opacity: 0.6; }
+
+/* Headline accent: solid Volt, no gradient text. */
+.hl { background: none !important; color: var(--volt) !important; -webkit-text-fill-color: currentColor !important; }
+.hl .unit { -webkit-text-fill-color: currentColor; }
+.neg { color: var(--red); }
+
+/* ---------------- Surfaces: flat track panels with lane lines ---------------- */
+.card, .soft, .stat-tile, .board, .side-card, .partner, .partner-tile, .app-sponsors, .app-sponsor, .badge,
+.rank-row, .feed-item, section.today, .shop-item, .ccard, .earn-row, .streak-card, .connect-card, .toast-card,
+.celebrate-card, .empty, .side-built, .no-wallet {
+  background: var(--track);
+  border-color: var(--line);
+  box-shadow: none;
+}
+.soft { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.empty { border-color: var(--line); color: var(--muted); }
+.tier-row, .badge, .partner { background: transparent; }
+.badge.got { background: var(--volt-wash); border-color: var(--volt-edge); }
+.streak-stats > div, .cash-bal, .result, .celebrate-break, .proof-chip, .wallet-addr, .wallet-tile, .voice-toggle, .type-value:focus-within {
+  background: var(--well);
+  border-color: var(--line);
+}
+.side-built { background: var(--track); }
+.partner-tile-logo, .partner-logo, .sponsor-logo img, .celebrate-sponsor-logo { background: #fff; }
+.celebrate-sponsor-logo, .celebrate-applogo { box-shadow: 0 0 0 6px var(--volt-wash); }
+
+/* Overlays and chrome */
+.modal, .toast, .celebrate { background: rgba(9, 10, 9, .82); }
+@media (max-width: 1023px) {
+  .topbar { background: rgba(15, 17, 16, .88); border-bottom-color: var(--line); }
+  .tabbar { background: rgba(15, 17, 16, .94); border-top-color: var(--line); }
+  .tab { color: var(--muted); }
+  .tab.on { color: var(--volt); }
+  .tab-new svg { background: var(--volt); color: var(--asphalt); border-color: var(--asphalt); box-shadow: none; }
+}
+@media (min-width: 1024px) {
+  .sidebar { background: var(--asphalt); border-right: 1px solid var(--line); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .side-link { color: var(--muted); }
+  .side-link:hover { background: var(--raised); color: var(--ink); }
+  .side-link.on { background: var(--raised); color: var(--ink); }
+  .side-card { background: var(--track); }
+}
+.me { background: var(--track); border-color: var(--line); color: var(--ink); }
+.brand-dot { background: var(--volt); box-shadow: 0 0 0 3px var(--volt-wash); }
+
+/* ---------------- Controls ---------------- */
+.btn { background: transparent; border-color: #3a403b; color: var(--ink); font-weight: 600; }
+.btn:hover:not(:disabled) { border-color: #556058; background: var(--raised); }
+.btn.primary, .btn.go {
+  background: var(--volt);
+  border-color: var(--volt);
+  color: var(--asphalt);
+  box-shadow: none;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.08rem;
+  letter-spacing: 0.02em;
+}
+.btn.primary:hover:not(:disabled), .btn.go:hover:not(:disabled) { background: #e2ff70; border-color: #e2ff70; }
+.btn.ghost { background: transparent; }
+.btn.warn { background: rgba(255, 138, 61, .1); border-color: rgba(255, 138, 61, .45); color: var(--flare); }
+.btn:disabled { opacity: 0.4; }
+.chip { background: transparent; border-color: #3a403b; color: var(--muted); }
+.chip.on { background: var(--volt); border-color: var(--volt); color: var(--asphalt); font-weight: 700; }
+.input { background: var(--well); border-color: #3a403b; color: var(--ink); }
+.input::placeholder { color: var(--faint); }
+.input:focus { border-color: var(--volt); box-shadow: 0 0 0 3px var(--volt-wash); }
+.link-btn { color: var(--muted); }
+.link-btn:hover { color: var(--ink); }
+a { color: inherit; }
+.faucets a, details.more summary, .back { color: var(--volt); }
+.connect-x { color: var(--muted); }
+.connect-x:hover { background: var(--raised); color: var(--ink); }
+.connect-badge { background: var(--raised); border-color: var(--line); }
+.wallet-tile.on { border-color: var(--volt); box-shadow: 0 0 0 3px var(--volt-wash); }
+.net-pill { background: rgba(185, 162, 255, .14); color: #c9b8ff; }
+
+/* Dials (timer rulers) */
+.dial-body { background: var(--well); border-color: var(--line); }
+.dial-cell { color: var(--faint); }
+.dial-pointer { border-top-color: var(--volt) !important; }
+.type-value:hover { background: var(--raised); }
+
+/* Progress: Volt lanes */
+.bar { background: #2a2f2b; }
+.bar span { background: var(--volt); }
+.st-open, .st-done { color: var(--volt); }
+.dot.good { background: var(--volt); }
+
+/* Results and errors */
+.result.ok { color: var(--ink); background: var(--volt-wash); border: 1px solid var(--volt-edge); }
+.result.no { color: var(--amber); background: var(--amber-wash); }
+.err { color: var(--red); }
+
+/* ---------------- Badges, avatars, tiers ---------------- */
+.avatar, .rank-row .avatar, .logo-fallback, .lb.mine .rank, .lb.mine .rank.fin { background: var(--volt); color: var(--asphalt); }
+.rank.fin { color: var(--volt); }
+.tier-full { background: var(--volt); color: var(--asphalt); }
+.tier-safe { background: var(--volt-wash); color: var(--volt); }
+.tier-partial { background: var(--amber-wash); color: var(--amber); }
+.stat-tile.highlight { background: var(--volt); border-color: var(--volt); color: var(--asphalt); }
+.stat-tile.highlight .small, .stat-tile.highlight .unit { color: var(--asphalt); }
+.celebrate-medal { background: var(--volt); color: var(--asphalt); box-shadow: 0 0 0 8px var(--volt-wash); }
+.celebrate-amt { background: none !important; color: var(--volt) !important; -webkit-text-fill-color: currentColor !important; }
+.celebrate-amt .unit { color: var(--volt); -webkit-text-fill-color: currentColor; }
+.celebrate-amt.muted-amt { color: var(--ink) !important; }
+.celebrate-break .total b { color: var(--volt); }
+
+/* Rule badges */
+.rule-badge.pool { background: rgba(255, 122, 110, .12); border-color: rgba(255, 122, 110, .38); color: #ff9a90; }
+.rule-badge.fraction { background: rgba(156, 210, 255, .12); border-color: rgba(156, 210, 255, .38); color: #9cd2ff; }
+.rule-badge.private { background: rgba(185, 162, 255, .12); border-color: rgba(185, 162, 255, .38); color: #c9b8ff; }
+
+/* ---------------- Sponsors and ads: amber, never gradient ---------------- */
+.sponsor-badge, .earn-bonus { background: var(--amber-wash); border: 1px solid var(--amber-edge); color: var(--amber); }
+.ccard.sponsored { border-color: var(--amber-edge); }
+.sponsor-logo { background: var(--raised); }
+.sponsor-amt { color: var(--amber); }
+.ad { background: #17150e; border-color: var(--amber-edge); box-shadow: none; }
+.ad:hover { border-color: var(--amber); }
+.ad-label { background: var(--amber-wash); color: var(--amber); }
+.ad-logo.house { background: transparent; border-color: var(--amber-edge); color: var(--amber); }
+.logo-pick { background: var(--amber-wash); border-color: var(--amber-edge); color: var(--amber); }
+.logo-pick.has { background: var(--well); }
+
+/* ---------------- Streaks: Flare is the only orange ---------------- */
+.side-streak, .me-streak, .rank-streak, .streak-row b, .streak-num, .wd.today .wd-lbl, .gold-star { color: var(--flare); }
+.streak-card { border-color: rgba(255, 138, 61, .35); }
+.wd-dot { background: transparent; border-color: #3a403b; color: var(--asphalt); }
+.wd.done .wd-dot { background: var(--flare); box-shadow: none; }
+.wd.today .wd-dot { border-color: var(--flare); }
+.wd.today.done .wd-dot { box-shadow: 0 0 0 3px rgba(255, 138, 61, .25); }
+.rank-row.mine { background: var(--volt-wash); border-color: var(--volt-edge); }
+
+/* ---------------- Today bar, feed, earnings ---------------- */
+section.today.today-done { background: var(--volt-wash); border-color: var(--volt-edge); }
+section.today.today-done .today-icon { background: var(--volt); color: var(--asphalt); }
+section.today.today-review { background: var(--amber-wash); border-color: var(--amber-edge); }
+section.today.today-review .today-icon { background: var(--amber-wash); border-color: var(--amber-edge); color: var(--amber); }
+.today-icon { background: var(--raised); border-color: var(--line); }
+.feed-item.own { background: var(--volt-wash); border-color: var(--volt-edge); }
+.feed-photo { background: var(--raised); }
+.feed-tag { background: rgba(255, 138, 61, .12); color: var(--flare); }
+.feed-tag.review { background: var(--amber-wash); color: var(--amber); }
+.cheer { background: transparent; border-color: #3a403b; }
+.cheer:hover:not(:disabled) { border-color: var(--amber-edge); }
+.cheer.on { background: var(--amber-wash); border-color: var(--amber); }
+.earn-row.won { background: var(--volt-wash); border-color: var(--volt-edge); }
+.earn-row.lost { background: rgba(255, 122, 110, .06); border-color: rgba(255, 122, 110, .3); }
+.earn-amt .win { color: var(--volt); }
+.earn-amt .lose { color: var(--red); }
+
+/* ---------------- Shop ---------------- */
+.shop-bal { background: var(--volt); color: var(--asphalt); box-shadow: none; }
+.shop-bal .small, .shop-bal .unit { color: var(--asphalt); }
+.shop-bal .btn { background: var(--asphalt); border-color: var(--asphalt); color: var(--ink); }
+.shop-icon { background: var(--raised) !important; } /* overrides the pastel inline tiles */
+.shop-item:hover { border-color: #3a403b; }
+.shop-buy { background: var(--volt); color: var(--asphalt); }
+.shop-owned { background: var(--volt-wash); color: var(--volt); }
+.reward-code { background: var(--volt-wash); border-color: var(--volt-edge); color: var(--volt); }
+
+/* ---------------- Partners / misc ---------------- */
+.partner-tile:hover { border-color: #3a403b; }
+.voice-toggle.on { background: var(--volt-wash); border-color: var(--volt-edge); color: var(--volt); }
+.strava-btn { color: #fff; }
+.steps { border-top-color: var(--line); }
+.partners { border-top-color: var(--line); }
+.foot { color: var(--faint); }
+.confetti i:nth-child(3n) { background: var(--volt) !important; }
+
+/* ---------------- Refinement pass (interface-design / baseline-ui rules) ---------------- */
+/* Borders that disappear until you look for them: low-opacity white, a 3-step progression. */
+:root {
+  --line: rgba(255, 255, 255, .085);
+  --line-strong: rgba(255, 255, 255, .14);
+}
+.btn, .chip, .input, .cheer, .wallet-tile, .wd-dot, .shop-item:hover, .partner-tile:hover { border-color: var(--line-strong); }
+.btn:hover:not(:disabled) { border-color: rgba(255, 255, 255, .24); }
+h1, h2, .ctitle, .celebrate-title { text-wrap: balance; }
+
+/* Volt only where it means something (~10%): actions, progress, money you won, "you". */
+.back, details.more summary, .faucets a { color: var(--ink); }
+details.more summary::before { color: var(--volt); }
+.faucets a, .back { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.st-open, .st-done { color: var(--ink); }
+.avatar, .rank-row .avatar, .logo-fallback { background: var(--raised); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.rank-row.mine .avatar { background: var(--volt); color: var(--asphalt); box-shadow: none; }
+.side-link.on { color: var(--ink); }
+
+/* Ads: readable amber text on dark (the light theme's dark-amber text vanished here). */
+.ad-body .muted, .ad .muted { color: var(--muted); }
+.ad-cta { color: var(--amber); }
+.ad-logo.house { color: var(--amber); }
+.ad-label { color: var(--amber); }
+/* Disabled primary: quiet gray, not a muddy half-transparent Volt. */
+.btn.primary:disabled, .btn.go:disabled { background: var(--raised); border-color: var(--line-strong); color: var(--muted); opacity: 1; }
+/* Detector follow-ups: active nav without a side stripe, a hero headline that fits the
+   first screen, and streak stats as plain columns rather than cards inside a card. */
+@media (min-width: 1024px) { .side-link.on { box-shadow: none; } .side-link.on svg { color: var(--volt); } }
+.hero h1 { font-size: clamp(2.9rem, 1.6rem + 4vw, 4.25rem); }
+.streak-stats > div { background: transparent; border: 0; border-left: 1px solid var(--line); border-radius: 0; }
+.streak-stats > div:first-child { border-left: 0; }
