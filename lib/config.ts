@@ -75,6 +75,14 @@ export type Sponsor = { name: string; amount: number; url?: string; at: number; 
 export const MAX_LOGO_BYTES = 150_000; // sponsor logos are shrunk to 256px in the browser first
 export const sponsorLogoUrl = (challengeId: string, index: number) => `/api/sponsor-logo/${challengeId}/${index}`;
 
+/**
+ * App-level sponsors shown at the top of the home page ("Sponsored by").
+ * Add more by adding a line; put the official logo file in /public/partners/.
+ */
+export const APP_SPONSORS: { name: string; logo: string; url?: string; note?: string }[] = [
+  { name: "Solana", logo: "/partners/solana.svg", url: "https://solana.com", note: "Escrow, payouts and run proofs" },
+];
+
 /** Tech partners shown in the "Powered by" strip. Drop official logo files into /public/partners/ to show them. */
 export const PARTNERS = [
   { name: "Solana", role: "Escrow, payouts and proof stamps", logo: "/partners/solana.svg" },

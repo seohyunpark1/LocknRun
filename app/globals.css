@@ -419,3 +419,17 @@ label { display: block; font-weight: 500; font-size: 0.85rem; color: var(--muted
 .sponsor-logo.lg img { padding: 0.35rem; }
 .celebrate-presenter { color: var(--ink); }
 .celebrate-applogo { width: 4.5rem; height: 4.5rem; border-radius: 1.1rem; display: block; margin: 0 auto 0.75rem; box-shadow: 0 0 0 8px rgba(34, 197, 94, .14); }
+
+/* Home: "Sponsored by" card beside the headline */
+.hero-split { display: grid; gap: 1.25rem; align-items: center; }
+@media (min-width: 1024px) { .hero-split { grid-template-columns: minmax(0, 1fr) 19rem; gap: 2.5rem; } }
+.app-sponsors { background: rgba(255, 255, 255, .8); border: 1px solid var(--line); border-radius: 1rem; padding: 1.1rem 1.2rem; box-shadow: var(--card-shadow); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.app-sponsor-list { display: grid; gap: 0.5rem; margin: 0.6rem 0 0.8rem; }
+.app-sponsor { display: grid; gap: 0.15rem; padding: 0.85rem 0.95rem; border-radius: 0.8rem; background: #fff; border: 1px solid var(--line); text-decoration: none; transition: border-color .12s, transform .12s; }
+.app-sponsor:hover { border-color: #a7dcb6; transform: translateY(-1px); }
+.app-sponsor-mark { display: flex; align-items: center; gap: 0.5rem; }
+.app-sponsor-mark b { font-size: 1.25rem; letter-spacing: -0.02em; }
+.app-sponsor-logo { height: 1.6rem; width: auto; max-width: 10rem; object-fit: contain; }
+.app-sponsor-logo + b { display: none; } /* the official logo replaces the name once the file is added */
+.app-sponsor-cta { color: var(--green-dark); font-weight: 500; text-decoration: none; }
+.app-sponsor-cta:hover { text-decoration: underline; }

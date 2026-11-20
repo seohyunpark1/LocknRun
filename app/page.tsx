@@ -7,7 +7,7 @@ import Dial from "@/components/Dial";
 import TypeValue from "@/components/TypeValue";
 import AppShell from "@/components/AppShell";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
-import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
+import { APP_SPONSORS, Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
@@ -75,14 +75,31 @@ export default function Home() {
   return (
     <AppShell>
     <main className="wrap">
-      <section className="hero">
-        <h1>
-          Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
-        </h1>
-        <p className="lede">
-          Put money on your running goal with friends. Everyone who finishes gets their deposit back <b>plus</b> a share of
-          the quitters&apos; money. The deposits wait in escrow on Solana, so nobody can back out of paying.
-        </p>
+      <section className="hero hero-split">
+        <div>
+          <h1>
+            Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
+          </h1>
+          <p className="lede">
+            Put money on your running goal with friends. Everyone who finishes gets their deposit back <b>plus</b> a share of
+            the quitters&apos; money. The deposits wait in escrow on Solana, so nobody can back out of paying.
+          </p>
+        </div>
+        <aside className="app-sponsors" aria-label="Sponsored by">
+          <div className="muted small">Sponsored by</div>
+          <div className="app-sponsor-list">
+            {APP_SPONSORS.map((sp) => (
+              <a key={sp.name} className="app-sponsor" href={sp.url} target="_blank" rel="noreferrer noopener">
+                <span className="app-sponsor-mark">
+                  <PartnerLogo src={sp.logo} name={sp.name} className="app-sponsor-logo" />
+                  <b>{sp.name}</b>
+                </span>
+                {sp.note && <span className="muted small">{sp.note}</span>}
+              </a>
+            ))}
+          </div>
+          <a className="small app-sponsor-cta" href="#live">Want your brand here? Pick a challenge to sponsor →</a>
+        </aside>
       </section>
 
       <div className="stats">
@@ -102,7 +119,7 @@ export default function Home() {
 
       <div className="layout">
         <section>
-          <h2>Live challenges</h2>
+          <h2 id="live" style={{ scrollMarginTop: "5rem" }}>Live challenges</h2>
           {active.length === 0 && <div className="empty">No live challenges yet.</div>}
           <div className="list cards">
             {active.map((c) => (
