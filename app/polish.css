@@ -193,7 +193,6 @@ details.more p { margin: 0.1rem 0 0; line-height: 1.55; }
 @media (max-width: 380px) {
   .tab { font-size: 0.68rem; }
   .lb { column-gap: 0.5rem; }
-  .board { padding-left: 0.75rem; padding-right: 0.75rem; }
 }
 
 /* Flex/grid children can't shrink below their longest word unless told: let feed cards and rows fit their column at any width. */
