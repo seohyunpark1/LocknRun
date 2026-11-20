@@ -52,7 +52,7 @@ npm run dev
 
 Configure the existing server escrow and sponsor credentials through your local environment or deployment secret manager. The escrow receives participant USDC; the sponsor needs devnet SOL for payouts, recipient token account creation and optional proof memos. Do not commit secret values.
 
-Use a devnet RPC endpoint in `NEXT_PUBLIC_SOLANA_RPC` and the configured USDC mint in `NEXT_PUBLIC_USDC_MINT` (default `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`). The endpoint and mint must both belong to Devnet. The browser integration supports wallets exposing `standard:connect`, `standard:events`, `solana:signMessage` and `solana:signTransaction` for `solana:devnet`. Existing web3.js transaction construction is retained for compatibility with this app; the wallet uses Wallet Standard's legacy transaction signing support.
+Use a devnet RPC endpoint in `NEXT_PUBLIC_SOLANA_RPC` and the configured USDC mint in `NEXT_PUBLIC_USDC_MINT` (default `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`). The endpoint and mint must both belong to Devnet. The browser integration supports wallets exposing `standard:connect`, `standard:events`, `solana:signMessage` and `solana:signTransaction` for `solana:devnet`. Wallet-facing requests use unsigned v0 transactions through Wallet Standard. The installed web3.js version can read v1 but cannot serialize v1 messages, so this app uses Phantom’s documented v0 compatibility flow. Previously signed legacy deposit intents remain supported for recovery.
 
 ## Vercel
 
@@ -93,3 +93,11 @@ Sponsor logos are stored separately and published only after their associated bo
 ## Wallet connected but actions reject the login
 
 The external wallet connection and the backend sign-in session are separate. On Vercel, Redis must be shared across all functions: the wallet API's `/tmp` files cannot authenticate requests handled by the challenge or withdrawal functions. Without Redis, login now returns `503 SHARED_STORAGE_UNAVAILABLE` instead of pretending sign-in succeeded. Missing or expired sessions return `401 WALLET_SESSION_REQUIRED`. The frontend checks that its issued session can be read before showing the account as signed in. Configure Upstash Redis for the relevant deployment environment, redeploy, then disconnect/reconnect to replace any session created before storage was configured.
+
+## Phantom transaction preview compatibility
+
+Wallet approval uses a fresh unsigned v0 message and `simulateTransaction` with explicit `sigVerify: false` / `commitment: confirmed`. The exact simulated bytes are returned to the wallet. The previous legacy SDK overload replaced the blockhash internally during simulation, which could leave the wallet reviewing a different message. Deposits and withdrawals are rebuilt after the human review dialog to avoid that dialog consuming their blockhash lifetime. Phantom signs first; the backend adds the sponsor signature to withdrawals only after checking the user's signed message against its stored intent.
+
+Before approval, the browser decodes the transaction and checks the exact transfer amount, mint, sender, recipient, fee payer, allowed instructions and required signers. Altered wallet-returned messages are rejected before submission. Backend operations verify the actual RPC genesis hash is Solana Devnet and enforce the configured Circle Devnet mint. Preflight remains enabled when broadcasting.
+
+Regression tests reproduce the former simulation/message mismatch, check v0 byte equality, reject Mainnet RPCs and altered transfer/authority instructions, and retain recovery of legacy pending deposits. These checks do **not** certify the app as audited or guarantee Phantom's own warning disappears. Test the new preview on the deployed domain; cancel instead of approving if Phantom still warns, and use its domain/transaction review process if needed. Reference: https://docs.phantom.com/recipes/transactions/resolve-transaction-simulation-warnings.

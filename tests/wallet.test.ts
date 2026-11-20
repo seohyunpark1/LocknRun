@@ -1,12 +1,17 @@
-import test from 'node:test';
+import test, { beforeEach, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateKeyPairSync, sign } from 'node:crypto';
-import { Keypair, Transaction } from '@solana/web3.js';
+import { Keypair, Transaction, VersionedTransaction } from '@solana/web3.js';
 import bs58 from 'bs58';
 process.env.LOCKRUN_DATA_FILE = join(mkdtempSync(join(tmpdir(), 'lockrun-wallet-')), 'challenges.json');
+
+beforeEach(async t => {
+  const { connection } = await import('../lib/solana-server');
+  (t as TestContext).mock.method(connection, 'getGenesisHash', async () => 'EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG');
+});
 
 // Ephemeral test keys only. Every RPC call in these tests is mocked.
 test('wallet login rejects different messages, different wallets, expired and reused nonces', async () => {
@@ -46,15 +51,15 @@ test('confirmed deposits register once; tampering and foreign wallets cannot bro
   const c = { id: 'wallet-test', title: 'Test', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: Date.now(), endsAt: Date.now() + 60_000, creatorName: 'Runner', status: 'draft' as const, participants: [] };
   await insertChallenge(c);
   const prepared = await prepareDeposit(c, owner.publicKey.toBase58(), 'Runner');
-  const tx = Transaction.from(Buffer.from(prepared.transaction, 'base64'));
-  const expected = tx.serializeMessage().toString('base64');
-  tx.sign(owner);
-  const signed = tx.serialize().toString('base64');
+  const tx = VersionedTransaction.deserialize(Buffer.from(prepared.transaction, 'base64'));
+  const expected = Buffer.from(tx.message.serialize()).toString('base64');
+  tx.sign([owner]);
+  const signed = Buffer.from(tx.serialize()).toString('base64');
   assert.doesNotThrow(() => validateSignedDeposit(signed, expected, owner.publicKey.toBase58()));
-  const tampered = Transaction.from(Buffer.from(signed, 'base64'));
-  tampered.instructions[1].data[1] ^= 1;
-  tampered.sign(owner);
-  assert.throws(() => validateSignedDeposit(tampered.serialize().toString('base64'), expected, owner.publicKey.toBase58()));
+  const tampered = VersionedTransaction.deserialize(Buffer.from(signed, 'base64'));
+  tampered.message.compiledInstructions[1].data[1] ^= 1;
+  tampered.sign([owner]);
+  assert.throws(() => validateSignedDeposit(Buffer.from(tampered.serialize()).toString('base64'), expected, owner.publicKey.toBase58()));
   assert.throws(() => validateSignedDeposit(prepared.transaction, expected, owner.publicKey.toBase58()));
   await assert.rejects(confirmDeposit(prepared.intentId, signed, escrow.publicKey.toBase58()));
   assert.equal(send.mock.callCount(), 0);
@@ -132,9 +137,9 @@ test('sponsor funding confirms once without registering a runner and retains ref
   const prepared = await prepareDeposit(c, donor.publicKey.toBase58(), 'Brand', { amount: 25, url: 'https://example.com' });
   assert.equal(prepared.summary.amount, 25);
   assert.equal(prepared.summary.kind, 'sponsor');
-  const tx = Transaction.from(Buffer.from(prepared.transaction, 'base64'));
-  tx.sign(donor);
-  const signed = tx.serialize().toString('base64');
+  const tx = VersionedTransaction.deserialize(Buffer.from(prepared.transaction, 'base64'));
+  tx.sign([donor]);
+  const signed = Buffer.from(tx.serialize()).toString('base64');
   const first = await confirmDeposit(prepared.intentId, signed, donor.publicKey.toBase58());
   assert.equal(first?.participants.length, 0);
   assert.equal(first?.sponsors?.[0].address, donor.publicKey.toBase58());
@@ -180,13 +185,16 @@ test('withdrawals require login, bind sender and recipient, and retry without an
   const prepared = await POST(request({ action: 'prepare', from: recipient.publicKey.toBase58(), to: recipient.publicKey.toBase58(), amount: 10 }));
   assert.equal(prepared.status, 200);
   const data = await prepared.json();
-  const tx = Transaction.from(Buffer.from(data.tx, 'base64'));
-  tx.partialSign(owner); // succeeds only if the authenticated wallet is the transfer authority
-  const original = tx.serialize().toString('base64');
-  const bad = Transaction.from(Buffer.from(original, 'base64'));
-  bad.instructions[1].data[1] ^= 1;
-  bad.partialSign(owner);
-  assert.equal((await POST(request({ action: 'submit', intentId: data.intentId, tx: bad.serialize({ verifySignatures: false }).toString('base64') }))).status, 400);
+  const tx = VersionedTransaction.deserialize(Buffer.from(data.tx, 'base64'));
+  assert.equal(tx.version, 0);
+  assert.equal(tx.message.header.numRequiredSignatures, 2);
+  assert.ok(tx.signatures.every(sig => sig.every(n => n === 0)), 'Sponsor must not pre-sign before Phantom approval');
+  tx.sign([owner]); // succeeds only if the authenticated wallet is the transfer authority
+  const original = Buffer.from(tx.serialize()).toString('base64');
+  const bad = VersionedTransaction.deserialize(Buffer.from(original, 'base64'));
+  bad.message.compiledInstructions[1].data[1] ^= 1;
+  bad.sign([owner]);
+  assert.equal((await POST(request({ action: 'submit', intentId: data.intentId, tx: Buffer.from(bad.serialize()).toString('base64') }))).status, 400);
   assert.equal(send.mock.callCount(), 0);
   const first = await POST(request({ action: 'submit', intentId: data.intentId, tx: original }));
   assert.equal(first.status, 200);
@@ -225,4 +233,75 @@ test('simulation diagnostics distinguish token funds, SOL fees, and unrelated pr
   assert.match(depositSimulationMessage({ InstructionError: [1, 'InvalidAccountData'] }, ['Program log: Error: InvalidAccountData']), /token account/);
   assert.match(depositSimulationMessage('BlockhashNotFound'), /blockhash/);
   assert.doesNotMatch(depositSimulationMessage({ InstructionError: [0, 'IncorrectProgramId'] }), /enough|balance/);
+});
+
+test('wallet receives precisely the v0 bytes simulated by the real SDK; unsigned refresh gets a fresh blockhash', async t => {
+  const { connection } = await import('../lib/solana-server');
+  const { prepareDeposit, refreshDeposit } = await import('../lib/deposits');
+  const { insertChallenge } = await import('../lib/store');
+  const { inspectWalletTransfer } = await import('../lib/wallet-transaction');
+  const wallet = Keypair.generate();
+  let block = 0;
+  t.mock.method(connection, 'getLatestBlockhash', async () => ({ blockhash: Keypair.generate().publicKey.toBase58(), lastValidBlockHeight: ++block + 100 }));
+  const simulated: string[] = [];
+  // Deliberately don't mock simulateTransaction: the old SDK overload changed these bytes.
+  t.mock.method(connection as any, '_rpcRequest', async (method: string, params: any[]) => {
+    assert.equal(method, 'simulateTransaction');
+    assert.equal(params[1].sigVerify, false);
+    assert.equal(params[1].commitment, 'confirmed');
+    simulated.push(params[0]);
+    return { jsonrpc: '2.0', id: 'test', result: { context: { slot: 123 }, value: { err: null, logs: [] } } };
+  });
+  t.mock.method(connection, 'getFeeForMessage', async () => ({ value: 5000 }));
+  const c = { id: 'fresh-tx', title: 'Test', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: Date.now(), endsAt: Date.now() + 60_000, creatorName: 'Runner', status: 'active' as const, participants: [] };
+  await insertChallenge(c);
+  const prepared = await prepareDeposit(c, wallet.publicKey.toBase58(), 'Runner');
+  assert.equal(prepared.transaction, simulated[0]);
+  assert.equal(prepared.summary.minContextSlot, 123);
+  const tx = inspectWalletTransfer(Buffer.from(prepared.transaction, 'base64'), { from: wallet.publicKey.toBase58(), to: prepared.summary.recipient, amount: 10, feePayer: wallet.publicKey.toBase58() });
+  assert.equal(tx.version, 0);
+  assert.ok(tx.signatures.every(sig => sig.every(n => n === 0)));
+  const fresh = await refreshDeposit(prepared.intentId, wallet.publicKey.toBase58());
+  assert.notEqual(fresh.intentId, prepared.intentId);
+  assert.equal(fresh.transaction, simulated[1]);
+  await assert.rejects(refreshDeposit(fresh.intentId, Keypair.generate().publicKey.toBase58()));
+  t.mock.restoreAll();
+});
+
+test('mainnet RPC cannot prepare a deposit even if the app claims Devnet', async t => {
+  const { connection } = await import('../lib/solana-server');
+  const { prepareDeposit } = await import('../lib/deposits');
+  t.mock.method(connection, 'getGenesisHash', async () => '5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d');
+  const simulated = t.mock.method(connection, 'simulateTransaction', async () => { throw new Error('Must not simulate on Mainnet'); });
+  await assert.rejects(prepareDeposit({ id: 'wrong-chain', title: 'Test', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: Date.now(), endsAt: Date.now() + 60_000, creatorName: 'Runner', status: 'active', participants: [] }, Keypair.generate().publicKey.toBase58(), 'Runner'), /network mismatch/);
+  assert.equal(simulated.mock.callCount(), 0);
+  t.mock.restoreAll();
+});
+
+test('browser inspection rejects a changed amount, authority instruction, or pre-signed request', async () => {
+  const { buildWalletTransaction, inspectWalletTransfer } = await import('../lib/wallet-transaction');
+  const { PublicKey, TransactionInstruction } = await import('@solana/web3.js');
+  const { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, createApproveInstruction, getAssociatedTokenAddressSync } = await import('@solana/spl-token');
+  const owner = Keypair.generate(), recipient = Keypair.generate().publicKey, mint = new PublicKey('4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU');
+  const source = getAssociatedTokenAddressSync(mint, owner.publicKey), dest = getAssociatedTokenAddressSync(mint, recipient);
+  const instructions = [createAssociatedTokenAccountIdempotentInstruction(owner.publicKey, dest, recipient, mint), createTransferCheckedInstruction(source, mint, dest, owner.publicKey, 10_000_000n, 6), new TransactionInstruction({ programId: new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr'), keys: [], data: Buffer.from('LockRun') })];
+  const tx = buildWalletTransaction(owner.publicKey, instructions, recipient.toBase58());
+  const expected = { from: owner.publicKey.toBase58(), to: recipient.toBase58(), amount: 10, feePayer: owner.publicKey.toBase58() };
+  assert.doesNotThrow(() => inspectWalletTransfer(tx.serialize(), expected));
+  assert.throws(() => inspectWalletTransfer(tx.serialize(), { ...expected, amount: 11 }));
+  assert.throws(() => inspectWalletTransfer(tx.serialize(), { ...expected, to: Keypair.generate().publicKey.toBase58() }));
+  const malicious = buildWalletTransaction(owner.publicKey, [...instructions, createApproveInstruction(source, recipient, owner.publicKey, 999_000_000n)], recipient.toBase58());
+  assert.throws(() => inspectWalletTransfer(malicious.serialize(), expected));
+  tx.sign([owner]);
+  assert.throws(() => inspectWalletTransfer(tx.serialize(), expected), /before other signatures/);
+});
+
+test('previously signed legacy deposits can still be validated for recovery', async () => {
+  const { validateSignedDeposit } = await import('../lib/deposits');
+  const { SystemProgram } = await import('@solana/web3.js');
+  const owner = Keypair.generate(), recipient = Keypair.generate().publicKey;
+  const tx = new Transaction({ feePayer: owner.publicKey, blockhash: recipient.toBase58(), lastValidBlockHeight: 100 }).add(SystemProgram.transfer({ fromPubkey: owner.publicKey, toPubkey: recipient, lamports: 1 }));
+  tx.sign(owner);
+  const validated = validateSignedDeposit(tx.serialize().toString('base64'), tx.serializeMessage().toString('base64'), owner.publicKey.toBase58());
+  assert.equal(validated.version, 'legacy');
 });

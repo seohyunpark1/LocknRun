@@ -98,13 +98,14 @@ export default function EarningsPage() {
       const d1 = await r1.json();
       if (!r1.ok) throw new Error(d1.error || "Couldn't prepare the transfer.");
       // The connected external wallet signs; private keys remain inside Phantom/Solflare.
-      const signed = await signWithdrawal(d1.tx, amt, to.trim());
-      sessionStorage.setItem("lockrun.withdrawal", JSON.stringify({ intentId: d1.intentId, tx: signed, address: me.address }));
+      const refreshed = await signWithdrawal(d1.tx, amt, to.trim(), d1.feePayer);
+      const signed = refreshed.signedTransaction;
+      sessionStorage.setItem("lockrun.withdrawal", JSON.stringify({ intentId: refreshed.intentId, tx: signed, address: me.address }));
       setPendingTransfer(true);
       const r2 = await fetch("/api/withdrawals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "submit", intentId: d1.intentId, tx: signed }),
+        body: JSON.stringify({ action: "submit", intentId: refreshed.intentId, tx: signed }),
       });
       const d2 = await r2.json();
       if (!r2.ok) throw new Error(d2.error || "Cash out failed.");

@@ -1,17 +1,22 @@
 // Server-only Solana logic: the challenge escrow. Never import this in client code.
 import "server-only";
+import { assertDevnet } from "./solana-network";
+import { buildWalletTransaction } from "./wallet-transaction";
+import { allSignaturesValid } from "./transaction-signatures";
 import { kvGet, kvSet } from "./store";
 import {
   Connection,
   Keypair,
   PublicKey,
+  VersionedTransaction,
+  TransactionMessage,
   Transaction,
   TransactionInstruction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountIdempotentInstruction,
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
@@ -42,6 +47,7 @@ const usdcAccount = (owner: PublicKey) => getAssociatedTokenAddressSync(mint, ow
 
 /** Returns rewards to the immutable participant address recorded at deposit. */
 export async function payFromEscrow(challengeId: string, to: string, amount: number, kind: "payout" | "sponsor-refund" = "payout") {
+  await assertDevnet(connection);
   const key = `${kind}:${challengeId}:${to}`;
   type Payment = { signature: string; raw: string; blockhash: string; lastValidBlockHeight: number; amount: number };
   let payment = await kvGet<Payment>(key);
@@ -76,6 +82,7 @@ export function sponsorAddress() { return sponsor().publicKey.toBase58(); }
  * Anyone can later check that the proof shown in the app matches what was recorded on-chain.
  */
 export async function stampProof(memo: string) {
+  await assertDevnet(connection);
   const payer = sponsor();
   const tx = new Transaction().add(
     new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(memo.slice(0, 500), "utf8") })
@@ -101,39 +108,41 @@ export async function usdcBalance(owner: string): Promise<number> {
  * The runner's browser adds its own signature; nobody else can move the runner's money.
  */
 export async function prepareWithdraw(from: string, to: string, amountUsd: number) {
+  await assertDevnet(connection);
   const payer = sponsor();
   const fromKey = new PublicKey(from);
   const toKey = new PublicKey(to);
   const toAta = usdcAccount(toKey);
   const raw = BigInt(Math.round(amountUsd * 10 ** USDC_DECIMALS));
-  const tx = new Transaction().add(
+  const lifetime = await connection.getLatestBlockhash('confirmed');
+  const tx = buildWalletTransaction(payer.publicKey, [
     createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, toAta, toKey, mint),
     createTransferCheckedInstruction(usdcAccount(fromKey), mint, toAta, fromKey, raw, USDC_DECIMALS),
     new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from("LockRun|cashout", "utf8") })
-  );
-  tx.feePayer = payer.publicKey;
-  const simulation = await connection.simulateTransaction(tx);
+  ], lifetime.blockhash);
+  const simulation = await connection.simulateTransaction(tx, { commitment: 'confirmed', sigVerify: false });
   if (simulation.value.err) throw new Error("Withdrawal simulation failed.");
-  tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
-  tx.partialSign(payer);
-  return tx.serialize({ requireAllSignatures: false }).toString("base64");
+  // Phantom must sign first. The sponsor signature is added only on authenticated submission.
+  return Buffer.from(tx.serialize()).toString('base64');
 }
 
 /** Cash out, step 2: submit the transaction once the runner's browser has signed it. */
 export async function submitWithdraw(base64Tx: string) {
-  const tx = Transaction.from(Buffer.from(base64Tx, "base64"));
-  const payer = sponsor().publicKey;
-  // Only accept transactions this server built: sponsor pays fees, and only token / account / memo instructions.
+  await assertDevnet(connection);
+  const tx = VersionedTransaction.deserialize(Buffer.from(base64Tx, 'base64'));
+  const payer = sponsor();
+  if (!tx.message.staticAccountKeys[0].equals(payer.publicKey)) throw new Error('Unexpected withdrawal fee payer.');
   const allowed = new Set([TOKEN_PROGRAM_ID.toBase58(), ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(), MEMO_PROGRAM_ID]);
-  if (!tx.feePayer?.equals(payer) || !tx.instructions.every((ix) => allowed.has(ix.programId.toBase58())) || !tx.verifySignatures())
-    throw new Error("That transaction wasn't prepared by Lock&Run.");
-  const signature = bs58.encode(tx.signature!);
+  if (!TransactionMessage.decompile(tx.message).instructions.every(ix => allowed.has(ix.programId.toBase58()))) throw new Error('Unexpected withdrawal instruction.');
+  tx.sign([payer]);
+  if (!allSignaturesValid(tx)) throw new Error('Missing withdrawal signature.');
+  const signature = bs58.encode(tx.signatures[0]);
   const status = (await connection.getSignatureStatuses([signature], { searchTransactionHistory: true })).value[0];
-  if (status?.err) throw new Error("Withdrawal failed on Solana.");
-  if (status && ["confirmed", "finalized"].includes(status.confirmationStatus || "")) return signature;
-  await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false });
-  const result = await connection.confirmTransaction(signature, "confirmed");
-  if (result.value.err) throw new Error("Withdrawal failed on Solana.");
+  if (status?.err) throw new Error('Withdrawal failed on Solana.');
+  if (status && ['confirmed', 'finalized'].includes(status.confirmationStatus || '')) return signature;
+  await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, preflightCommitment: 'confirmed' });
+  const result = await connection.confirmTransaction(signature, 'confirmed');
+  if (result.value.err) throw new Error('Withdrawal failed on Solana.');
   return signature;
 }
 
