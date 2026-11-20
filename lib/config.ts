@@ -11,7 +11,7 @@ export const DEPOSITS = [5, 10, 20];
 export const GOAL_KMS = [1, 3, 5, 10];
 export const RUNS_REQUIRED = [1, 2, 3, 5];
 export const DURATIONS: { label: string; minutes: number }[] = [
-  { label: "15 min (demo)", minutes: 15 },
+  { label: "15 min", minutes: 15 },
   { label: "1 day", minutes: 60 * 24 },
   { label: "1 week", minutes: 60 * 24 * 7 },
 ];
@@ -20,7 +20,21 @@ export const DURATIONS: { label: string; minutes: number }[] = [
 export const MIN_PACE_SEC_PER_KM = 150; // faster than 2:30/km = probably a bike or car
 export const MAX_PACE_SEC_PER_KM = 1200; // slower than 20:00/km = walking around, doesn't count
 
-export type Run = { id: string; km: number; sec: number; at: number; counts: boolean };
+export type Run = {
+  id: string;
+  km: number;
+  sec: number;
+  at: number;
+  counts: boolean;
+  source?: "gps" | "strava";
+  photo?: boolean; // a photo proof is stored for this run (GET /api/photos/<run id>)
+  stravaId?: number; // Strava activity id, for imported runs
+  stravaName?: string;
+  proofSig?: string; // Solana memo transaction that stamps the proof on-chain
+};
+
+// Biggest photo the server accepts after in-browser compression (~0.45 MB).
+export const MAX_PHOTO_BYTES = 450_000;
 
 export type Participant = {
   name: string;

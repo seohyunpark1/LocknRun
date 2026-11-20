@@ -62,6 +62,20 @@ export function payFromEscrow(challengeId: string, to: string, amount: number) {
   return transferUsdc(escrow(), new PublicKey(to), amount, `LockRun|payout|${challengeId}`);
 }
 
+/**
+ * Stamps a run's proof on Solana: a memo-only transaction (paid by the sponsor) containing the
+ * challenge, distance, time and a SHA-256 fingerprint of the photo or the Strava activity id.
+ * Anyone can later check that the proof shown in the app matches what was recorded on-chain.
+ */
+export async function stampProof(memo: string) {
+  const payer = sponsor();
+  const tx = new Transaction().add(
+    new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(memo.slice(0, 500), "utf8") })
+  );
+  tx.feePayer = payer.publicKey;
+  return sendAndConfirmTransaction(connection, tx, [payer], { commitment: "confirmed" });
+}
+
 export async function escrowBalance(): Promise<number | null> {
   try {
     const bal = await connection.getTokenAccountBalance(usdcAccount(escrow().publicKey));

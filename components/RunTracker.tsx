@@ -7,7 +7,7 @@ type Result = { counts: boolean; reason?: string };
 type Props = {
   goalKm: number;
   demo: boolean;
-  onFinish: (km: number, sec: number) => Promise<Result>;
+  onFinish: (km: number, sec: number, photo: string) => Promise<Result>;
 };
 
 // Distance between two GPS points in meters.
@@ -27,7 +27,9 @@ function spokenPace(secPerKm: number) {
 }
 
 export default function RunTracker({ goalKm, demo, onFinish }: Props) {
-  const [phase, setPhase] = useState<"idle" | "running" | "saving" | "done">("idle");
+  const [phase, setPhase] = useState<"idle" | "running" | "proof" | "saving" | "done">("idle");
+  const [photo, setPhoto] = useState<string>("");
+  const final = useRef({ km: 0, sec: 0 });
   const [meters, setMeters] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [gps, setGps] = useState<"waiting" | "good" | "weak" | "off">("waiting");
@@ -141,15 +143,34 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
       setError("No distance recorded, so nothing was saved.");
       return;
     }
-    setPhase("saving");
+    final.current = { km: finalKm, sec: finalSec };
+    setPhoto("");
+    setPhase("proof");
+    speak("Nice run! Snap a photo as proof to save it.");
+  }
+
+  async function pickPhoto(file: File | undefined) {
+    if (!file) return;
+    setError("");
     try {
-      const r = await onFinish(finalKm, finalSec);
+      setPhoto(await compressPhoto(file));
+    } catch {
+      setError("Couldn't read that photo. Try another one.");
+    }
+  }
+
+  async function save() {
+    if (!photo) return;
+    setPhase("saving");
+    setError("");
+    try {
+      const r = await onFinish(final.current.km, final.current.sec, photo);
       setResult(r);
-      speak(r.counts ? `Run saved! ${finalKm} kilometers. That one counts. Great job!` : `Run saved, but it doesn't count. ${r.reason || ""}`);
+      speak(r.counts ? `Run saved! ${final.current.km} kilometers. That one counts. Great job!` : `Run saved, but it doesn't count. ${r.reason || ""}`);
       setPhase("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save the run");
-      setPhase("idle");
+      setPhase("proof");
     }
   }
 
@@ -181,7 +202,7 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
           <div className="tk-label">pace /km</div>
         </div>
       </div>
-      <div className="bar" style={{ margin: "14px 0" }}>
+      <div className="bar" style={{ margin: "0.9rem 0" }}>
         <span style={{ width: `${pct}%` }} />
       </div>
 
@@ -205,7 +226,30 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
           )}
         </>
       )}
-      {phase === "saving" && <p className="muted">Saving your run…</p>}
+      {phase === "proof" && (
+        <div className="proof">
+          <b>Add a photo as proof</b>
+          <p className="muted small" style={{ margin: "0.2rem 0 0.75rem" }}>
+            A selfie at the finish or your watch screen. Everyone in the challenge can see it, and its fingerprint is stamped on Solana.
+          </p>
+          <label className={`photo-pick ${photo ? "has" : ""}`}>
+            {photo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photo} alt="Your run photo" />
+            ) : (
+              <span>Take or choose a photo</span>
+            )}
+            <input type="file" accept="image/*" onChange={(e) => pickPhoto(e.target.files?.[0])} />
+          </label>
+          <button className="btn primary block big" style={{ marginTop: "0.75rem" }} disabled={!photo} onClick={save}>
+            Save run
+          </button>
+          <button className="btn ghost block" style={{ marginTop: "0.5rem" }} onClick={() => { setPhase("idle"); setPhoto(""); }}>
+            Discard
+          </button>
+        </div>
+      )}
+      {phase === "saving" && <p className="muted">Saving your run and stamping the proof on Solana…</p>}
       {phase === "done" && result && (
         <div className={`result ${result.counts ? "ok" : "no"}`}>
           <b>{result.counts ? "Run counted" : "Saved, but it doesn't count"}</b>
@@ -218,4 +262,32 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
       {error && <p className="err">{error}</p>}
     </div>
   );
+}
+
+/** Shrinks a photo in the browser (max 1024 px, JPEG) so uploads are fast on mobile data. */
+async function compressPhoto(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const max = 1024;
+    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.naturalWidth * scale);
+    canvas.height = Math.round(img.naturalHeight * scale);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    let q = 0.75;
+    let out = canvas.toDataURL("image/jpeg", q);
+    while (out.length > 550_000 && q > 0.35) {
+      q -= 0.1;
+      out = canvas.toDataURL("image/jpeg", q);
+    }
+    return out;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }

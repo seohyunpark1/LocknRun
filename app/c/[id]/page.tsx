@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import NameGate from "@/components/NameGate";
 import RunTracker from "@/components/RunTracker";
-import { Challenge, countedRuns, explorerTx, isFinisher, money, pace } from "@/lib/config";
+import StravaImport from "@/components/StravaImport";
+import { Challenge, Run, countedRuns, explorerTx, isFinisher, money, pace } from "@/lib/config";
 import { computePayouts } from "@/lib/settle";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
@@ -20,6 +21,7 @@ export default function ChallengePage() {
   const [copied, setCopied] = useState(false);
   const [toast, setToast] = useState<{ big: string; line: string } | null>(null);
   const announcedPayout = useRef(false);
+  const [viewRun, setViewRun] = useState<{ run: Run; name: string } | null>(null);
 
   useEffect(() => {
     const flag = new URLSearchParams(window.location.search).get("demo");
@@ -88,11 +90,11 @@ export default function ChallengePage() {
     }
   }
 
-  async function saveRun(km: number, sec: number) {
+  async function saveRun(km: number, sec: number, photo: string) {
     const r = await fetch(`/api/challenges/${id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "run", address: me?.address, km, sec }),
+      body: JSON.stringify({ action: "run", address: me?.address, km, sec, photo }),
     });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || "Could not save run");
@@ -175,10 +177,15 @@ export default function ChallengePage() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                 <h2>Your run</h2>
                 <span className="muted small">
-                  {countedRuns(mine)}/{c.runsRequired} runs counted {isFinisher(c, mine) ? "· finished" : ""}
+                  {Math.min(countedRuns(mine), c.runsRequired)}/{c.runsRequired} runs counted {isFinisher(c, mine) ? "· finished" : ""}
                 </span>
               </div>
               <RunTracker goalKm={c.goalKm} demo={demo} onFinish={saveRun} />
+              <StravaImport
+                challengeId={c.id}
+                address={me!.address}
+                onImported={(d) => setC(d.challenge as Challenge)}
+              />
             </div>
           )}
 
@@ -206,13 +213,13 @@ export default function ChallengePage() {
                 <div key={p.address} className={`lb ${p.address === me?.address ? "mine" : ""}`}>
                   <div className={`rank ${fin ? "fin" : ""}`}>{fin ? "✓" : i + 1}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontWeight: 800 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "0.6rem", fontWeight: 600 }}>
                       <span>{p.address === me?.address ? `${p.name} (you)` : p.name}</span>
                       <span>
-                        {done}/{c.runsRequired}
+                        {Math.min(done, c.runsRequired)}/{c.runsRequired}
                       </span>
                     </div>
-                    <div className="bar thin" style={{ margin: "8px 0" }}>
+                    <div className="bar thin" style={{ margin: "0.5rem 0" }}>
                       <span style={{ width: `${Math.min(100, (done / c.runsRequired) * 100)}%` }} />
                     </div>
                     <div className="meta">
@@ -223,6 +230,21 @@ export default function ChallengePage() {
                         <a href={explorerTx(p.paySig)} target="_blank" rel="noreferrer">payout receipt ↗</a>
                       )}
                     </div>
+                    {p.runs.length > 0 && (
+                      <div className="proofs">
+                        {p.runs.slice(-6).reverse().map((r) => (
+                          <button key={r.id} className={`proof-chip ${r.counts ? "" : "nope"}`} onClick={() => setViewRun({ run: r, name: p.name })} title="See proof">
+                            {r.photo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={`/api/photos/${r.id}`} alt="" loading="lazy" />
+                            ) : (
+                              <span className="strava-mark" aria-hidden />
+                            )}
+                            <span>{r.km} km</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="payout">
                     {c.status === "settled" ? (
@@ -254,7 +276,8 @@ export default function ChallengePage() {
             </div>
           )}
           <p className="muted small" style={{ marginTop: 14 }}>
-            Runs count when they reach {c.goalKm} km at a running pace (between 2:30 and 20:00 per km).
+            Runs count when they reach {c.goalKm} km at a running pace (between 2:30 and 20:00 per km) and come with proof:
+            a photo, or a run recorded on Strava. Every proof is stamped on Solana.
           </p>
         </aside>
       </div>
@@ -268,6 +291,33 @@ export default function ChallengePage() {
             speak(`Welcome, ${n}!`);
           }}
         />
+      )}
+      {viewRun && (
+        <div className="modal" onClick={() => setViewRun(null)}>
+          <div className="card viewer" onClick={(e) => e.stopPropagation()}>
+            {viewRun.run.photo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/api/photos/${viewRun.run.id}`} alt={`${viewRun.name}'s run photo`} />
+            )}
+            <h2 style={{ margin: "0.9rem 0 0.25rem" }}>
+              {viewRun.name} · {viewRun.run.km} km in {Math.floor(viewRun.run.sec / 60)}:{String(viewRun.run.sec % 60).padStart(2, "0")}
+            </h2>
+            <div className="meta">
+              <span>{pace(viewRun.run.sec / viewRun.run.km)}/km</span>
+              <span>{viewRun.run.source === "strava" ? `Strava: ${viewRun.run.stravaName || "run"}` : "GPS + photo"}</span>
+              <span className={viewRun.run.counts ? "" : "nope-text"}>{viewRun.run.counts ? "Counted" : "Didn't count"}</span>
+            </div>
+            <div className="meta" style={{ marginTop: "0.5rem" }}>
+              {viewRun.run.stravaId && (
+                <a href={`https://www.strava.com/activities/${viewRun.run.stravaId}`} target="_blank" rel="noreferrer">View on Strava ↗</a>
+              )}
+              {viewRun.run.proofSig && (
+                <a href={explorerTx(viewRun.run.proofSig)} target="_blank" rel="noreferrer">Proof on Solana ↗</a>
+              )}
+            </div>
+            <button className="btn block" style={{ marginTop: "1rem" }} onClick={() => setViewRun(null)}>Close</button>
+          </div>
+        </div>
       )}
       {toast && (
         <div className="toast" onClick={() => setToast(null)}>

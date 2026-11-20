@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
-import { MAX_PACE_SEC_PER_KM, MIN_PACE_SEC_PER_KM, clean } from "@/lib/config";
-import { lockDeposit, payFromEscrow } from "@/lib/solana-server";
+import crypto from "node:crypto";
+import { MAX_PACE_SEC_PER_KM, MAX_PHOTO_BYTES, MIN_PACE_SEC_PER_KM, Run, clean } from "@/lib/config";
+import { lockDeposit, payFromEscrow, stampProof } from "@/lib/solana-server";
 import { computePayouts } from "@/lib/settle";
-import { acquireLock, getChallenge, mutate, newId, releaseLock } from "@/lib/store";
+import { acquireLock, getChallenge, mutate, newId, releaseLock, savePhoto } from "@/lib/store";
+import { StravaRun, getRun, stravaEnabled } from "@/lib/strava";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +35,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 /**
  * POST /api/challenges/:id { action, ... }
  *   join   { name, address }     -> lock the deposit in escrow, add runner
- *   run    { address, km, sec }  -> log a run (counts if distance >= goal and pace is human)
+ *   run    { address, km, sec, photo } -> log a GPS run with a photo proof
+ *   strava { address, activityId }      -> import a run from Strava (verified with Strava's API)
+ *   (a run counts if distance >= goal and the pace is human; its proof is stamped on Solana)
  *   settle {}                    -> after the deadline: pay finishers from escrow
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -62,31 +66,78 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       });
     }
 
-    if (body.action === "run") {
-      return await withLock(`c:${id}`, async () => {
+    if (body.action === "run" || body.action === "strava") {
+      // Gather the proof first (outside the lock: these can take a few seconds).
+      let km: number, sec: number, photo: string | null = null, strava: StravaRun | null = null;
+      if (body.action === "run") {
+        km = Math.round(Number(body.km) * 100) / 100;
+        sec = Math.round(Number(body.sec));
+        photo = typeof body.photo === "string" ? body.photo : null;
+        if (!photo || !/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(photo)) return fail("Add a photo as proof of your run.");
+        if (photo.length > MAX_PHOTO_BYTES * 1.37) return fail("That photo is too big. Try another one.");
+      } else {
+        if (!stravaEnabled()) return fail("Strava isn't set up on this server.", 501);
+        strava = await getRun(String(body.address), Number(body.activityId));
+        if (!strava) return fail("That Strava activity isn't a run.");
+        km = strava.km;
+        sec = strava.sec;
+      }
+      if (!(km > 0 && km <= 60 && sec > 0 && sec <= 6 * 3600)) return fail("That run doesn't look right.");
+
+      const result = await withLock(`c:${id}`, async () => {
         const c = await getChallenge(id);
-        if (!c) return fail("Challenge not found", 404);
+        if (!c) return { error: fail("Challenge not found", 404) };
         const now = Date.now();
-        if (c.status !== "active" || now >= c.endsAt) return fail("Time's up. This challenge already ended.", 409);
+        if (c.status !== "active" || now >= c.endsAt) return { error: fail("Time's up. This challenge already ended.", 409) };
         const p = c.participants.find((x) => x.address === body.address);
-        if (!p) return fail("Join the challenge first.", 403);
-        const km = Math.round(Number(body.km) * 100) / 100;
-        const sec = Math.round(Number(body.sec));
-        if (!(km > 0 && km <= 60 && sec > 0 && sec <= 6 * 3600)) return fail("That run doesn't look right.");
-        if (p.runs.length >= 50) return fail("That's a lot of runs! Limit reached.");
+        if (!p) return { error: fail("Join the challenge first.", 403) };
+        if (p.runs.length >= 50) return { error: fail("That's a lot of runs! Limit reached.") };
+        if (strava) {
+          if (c.participants.some((x) => x.runs.some((r) => r.stravaId === strava!.id)))
+            return { error: fail("That Strava run was already used.", 409) };
+          if (strava.startedAt < p.joinedAt || strava.startedAt > c.endsAt)
+            return { error: fail("That run happened outside this challenge.", 409) };
+        }
 
         const paceSec = sec / km;
         let reason = "";
         if (km < c.goalKm) reason = `Needs at least ${c.goalKm} km to count.`;
         else if (paceSec < MIN_PACE_SEC_PER_KM) reason = "Too fast to be running (bike or car?).";
         else if (paceSec > MAX_PACE_SEC_PER_KM) reason = "Too slow to count as a run.";
-        const run = { id: newId(), km, sec, at: now, counts: !reason };
-
-        const updated = await mutate(id, (x) => {
+        const run: Run = {
+          id: newId(),
+          km,
+          sec,
+          at: now,
+          counts: !reason,
+          source: strava ? "strava" : "gps",
+          photo: !!photo,
+          ...(strava ? { stravaId: strava.id, stravaName: strava.name } : {}),
+        };
+        if (photo) await savePhoto(run.id, photo);
+        await mutate(id, (x) => {
           x.participants.find((y) => y.address === p.address)!.runs.push(run);
         });
-        return NextResponse.json({ challenge: updated, run, reason });
+        return { run, reason };
       });
+      if ("error" in result) return result.error!;
+      const { run, reason } = result;
+
+      // Stamp the proof on Solana. If the network is slow, the run is still saved.
+      const fingerprint = photo
+        ? "photo:" + crypto.createHash("sha256").update(photo).digest("hex").slice(0, 32)
+        : `strava:${run.stravaId}`;
+      try {
+        const proofSig = await stampProof(`LockRun|run|${id}|${run.km}km|${run.sec}s|${fingerprint}`);
+        await mutate(id, (x) => {
+          const r = x.participants.flatMap((y) => y.runs).find((y) => y.id === run.id);
+          if (r) r.proofSig = proofSig;
+        });
+        run.proofSig = proofSig;
+      } catch (e) {
+        console.error("proof stamp failed:", e instanceof Error ? e.message : e);
+      }
+      return NextResponse.json({ challenge: await getChallenge(id), run, reason });
     }
 
     if (body.action === "settle") {

@@ -97,3 +97,29 @@ export async function releaseLock(key: string) {
   }
   memLocks.delete(key);
 }
+
+// ---------- simple key/value (photos, Strava tokens) ----------
+const KV_DIR = process.env.VERCEL ? "/tmp/lockrun-kv" : path.join(process.cwd(), "data", "kv");
+const kvFile = (key: string) => path.join(KV_DIR, key.replace(/[^a-zA-Z0-9_-]/g, "_") + ".json");
+
+export async function kvGet<T>(key: string): Promise<T | null> {
+  if (redis) return (await redis.get<T>(`lockrun:${key}`)) ?? null;
+  try {
+    return JSON.parse(fs.readFileSync(kvFile(key), "utf8")) as T;
+  } catch {
+    return null;
+  }
+}
+
+export async function kvSet(key: string, value: unknown) {
+  if (redis) {
+    await redis.set(`lockrun:${key}`, value);
+    return;
+  }
+  fs.mkdirSync(KV_DIR, { recursive: true });
+  fs.writeFileSync(kvFile(key), JSON.stringify(value));
+}
+
+/** Run photos are stored apart from challenges so the challenge list stays small. */
+export const savePhoto = (runId: string, dataUrl: string) => kvSet(`photo:${runId}`, dataUrl);
+export const getPhoto = (runId: string) => kvGet<string>(`photo:${runId}`);

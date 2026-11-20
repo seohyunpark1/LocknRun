@@ -46,11 +46,23 @@ Everyone locks the same deposit `D`. With `F` finishers and `Q` quitters:
 
 Example: 3 runners × $10. Two finish, one quits → each finisher gets **$15** ($10 back + $5 from the quitter).
 
+### Proof: every run needs one
+- **Photo proof (GPS runs):** after a GPS run, the runner adds a photo (a selfie at the finish or their watch screen).
+  The photo is compressed in the browser, stored by the app, and shown on the leaderboard so everyone in the
+  challenge can see it.
+- **Strava proof:** runners can connect Strava and pick a run they recorded there. The server fetches that activity
+  from Strava's API itself (the browser can't fake distance or time), checks that it happened after the runner joined
+  and before the deadline, and that it hasn't been used before.
+- **Stamped on Solana:** every run gets a memo transaction:
+  `LockRun|run|<challenge>|<km>km|<seconds>s|photo:<SHA-256 of the photo>` or `...|strava:<activity id>`.
+  Anyone can check that the proof shown in the app matches what was recorded on-chain at the time.
+
 ### What counts as a run
 - Tracked with the browser's GPS (`watchPosition`, high accuracy). Points with accuracy worse than 35 m are ignored,
   standing-still jitter (< 3 m) is ignored, and jumps faster than ~29 km/h are dropped (GPS glitches or vehicles).
 - The screen is kept awake with the Wake Lock API so tracking doesn't pause.
-- The server only counts a run if it reaches the goal distance **and** the pace is between 2:30 and 20:00 per km.
+- The server only counts a run if it reaches the goal distance, the pace is between 2:30 and 20:00 per km,
+  **and** it comes with proof (a photo or a Strava activity).
 - Runs can only be logged before the deadline; payouts can only happen after it.
 
 ## How we use Solana
@@ -62,6 +74,7 @@ Example: 3 runners × $10. Two finish, one quits → each finisher gets **$15** 
 | **SPL Memo program** | Each transfer is tagged `LockRun|join|<challenge>` or `LockRun|payout|<challenge>`, so every pot has a public receipt trail; each runner's deposit and payout receipts are linked on the leaderboard |
 | **Associated Token Accounts** | Runner USDC accounts are created on first payout (`createAssociatedTokenAccountIdempotent`) |
 | **Fee sponsorship** | A sponsor wallet pays every network fee, so runners never need SOL or a seed phrase |
+| **Proof stamps** | Each run's proof fingerprint is written to Solana with a memo, creating a public, timestamped record |
 | **Speed + low fees** | Paying out a pot to many runners costs fractions of a cent and settles in about a second |
 
 **Program IDs used:** SPL Token `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` · Associated Token Account
@@ -83,8 +96,14 @@ Example: 3 runners × $10. Two finish, one quits → each finisher gets **$15** 
   rules. All movements are public on Solana. **Next step:** an Anchor program with one PDA vault per challenge so the
   settlement rules are enforced on-chain.
 - **Run verification:** browser GPS can be spoofed by a determined cheater. The pace and jump filters stop casual
-  cheating (biking, driving). **Next step:** verify runs through Strava / Garmin / Apple Health APIs.
+  cheating (biking, driving), every GPS run needs a photo that the whole group can see, and Strava runs are checked
+  directly with Strava. **Next step:** Garmin / Apple Health import and photo checks (location and time metadata).
 - **On-ramp:** the sponsor wallet stands in for a card or Apple Pay payment.
+
+## Install it like an app
+
+Lock&Run is an installable web app. Open the site on a phone and choose **Add to Home Screen** (Safari: Share button;
+Chrome: ⋮ menu). It gets its own icon and opens full screen. The layout scales from small phones to desktops.
 
 ## What makes it unique?
 
@@ -96,7 +115,7 @@ Example: 3 runners × $10. Two finish, one quits → each finisher gets **$15** 
 ## What would we build next?
 
 - Anchor escrow program (PDA vault per challenge) and automatic payout at the deadline
-- Strava / Garmin / Apple Health run verification
+- Garmin and Apple Health run import, and webhooks so Strava runs are added automatically
 - Team challenges for running clubs and cross-country teams, with streaks and leaderboards
 - Optional "quitters' money goes to charity" mode
 
@@ -135,7 +154,11 @@ Remove it with `?demo=0`. Use a **15 min** challenge so you can show the payout 
    faster than the public one).
 3. **Storage:** Project → Storage → create **Upstash for Redis** (free) and connect it to the project. This adds
    `KV_REST_API_URL` and `KV_REST_API_TOKEN`, which Lock&Run uses to save challenges. Without it, challenges won't persist on Vercel.
-4. Redeploy. Your phone can now track runs with GPS, because Vercel serves the app over HTTPS.
+4. **Optional, Strava:** create an app at https://www.strava.com/settings/api, set its *Authorization Callback Domain*
+   to your Vercel domain (for example `locknrun.vercel.app`), and add `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET`.
+   Note: new Strava apps start in "single player mode" (only your own Strava account can connect) until you upgrade
+   the app's capacity in Strava's API settings.
+5. Redeploy. Your phone can now track runs with GPS, because Vercel serves the app over HTTPS.
 
 **Storage:** on Vercel, challenges are saved in Upstash Redis. Locally they're saved in `data/challenges.json`.
 Money and receipts always live on Solana.
@@ -145,7 +168,12 @@ Money and receipts always live on Solana.
 ```
 app/page.tsx                    Home: live challenges, create form, escrow balance
 app/c/[id]/page.tsx             Challenge: join, run tracker, leaderboard, payout
-components/RunTracker.tsx       GPS run tracking + voice coach
+components/RunTracker.tsx       GPS run tracking, voice coach, photo proof
+components/StravaImport.tsx     Connect Strava and import runs
+lib/strava.ts                   Strava OAuth + activities (server)
+app/api/strava/*                Strava connect / callback / status / runs
+app/api/photos/[runId]          Serves run photos
+public/manifest.webmanifest     Install-to-home-screen settings + icons
 app/api/challenges/route.ts     List + create (locks the creator's deposit)
 app/api/challenges/[id]/route.ts Join (lock deposit) / log run / settle (pay out)
 app/api/voice/route.ts          ElevenLabs text-to-speech

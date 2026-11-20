@@ -33,6 +33,16 @@ export default function Home() {
   const [minutes, setMinutes] = useState(DURATIONS[0].minutes);
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState("");
+  const [formInView, setFormInView] = useState(false);
+
+  // Hide the phone "New challenge" button while the form itself is on screen.
+  useEffect(() => {
+    const el = document.getElementById("new");
+    if (!el || !("IntersectionObserver" in window)) return;
+    const io = new IntersectionObserver(([e]) => setFormInView(e.isIntersecting), { threshold: 0.15 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [me]);
 
   useEffect(() => {
     let stop = false;
@@ -92,7 +102,7 @@ export default function Home() {
 
       <div className="steps">
         <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your $10 is locked in escrow.</div>
-        <div className="step"><b>2 · Run with a voice coach</b>GPS tracks your run and a coach talks you through every km.</div>
+        <div className="step"><b>2 · Run and prove it</b>GPS and a voice coach track every km. Add a photo or a Strava run as proof.</div>
         <div className="step"><b>3 · Split the pot</b>Finishers split the quitters&apos; deposits, paid out in about a second.</div>
       </div>
 
@@ -118,7 +128,7 @@ export default function Home() {
           </div>
           {ended.length > 0 && (
             <>
-              <h2 style={{ marginTop: 28 }}>Finished</h2>
+              <h2 style={{ marginTop: "1.75rem" }}>Finished</h2>
               <div className="list">
                 {ended.map((c) => (
                   <ChallengeCard key={c.id} c={c} now={now} meAddr={me?.address} />
@@ -128,7 +138,7 @@ export default function Home() {
           )}
         </section>
 
-        <aside className="card post">
+        <aside className="card post" id="new">
           <h2>Start a challenge</h2>
           <label>Name it (optional)</label>
           <input className="input" maxLength={60} placeholder="Morning 3K crew" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -146,16 +156,18 @@ export default function Home() {
               </button>
             ))}
           </div>
-          <button className="btn primary block" style={{ marginTop: 18 }} disabled={creating} onClick={create}>
+          <button className="btn primary block" style={{ marginTop: "1.25rem" }} disabled={creating} onClick={create}>
             {creating ? "Locking your deposit…" : `Create & lock ${money(deposit)}`}
           </button>
           <p className="muted small" style={{ textAlign: "center", margin: "8px 0 0" }}>
-            Demo mode: paid like Apple Pay, with test dollars.
+            Demo mode: paid like Apple Pay, with test dollars. "15 min" is for live demos.
           </p>
           {err && <p className="err">{err}</p>}
         </aside>
       </div>
       <p className="foot">Hackathon demo · Solana devnet · test money only</p>
+
+      {!formInView && <a href="#new" className="btn primary fab">New challenge</a>}
 
       {!me && (
         <NameGate
