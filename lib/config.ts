@@ -83,14 +83,15 @@ export type Partner = { name: string; domain: string; logo: string; url: string;
  * site icon is loaded from its domain; if neither loads, the name is shown.
  */
 export const PARTNERS: Partner[] = [
-  { name: "Solana", domain: "solana.com", logo: "/partners/solana.svg", url: "https://solana.com", role: "Escrow, payouts and run proofs" },
-  { name: "Circle", domain: "circle.com", logo: "/partners/circle.svg", url: "https://www.circle.com", role: "USDC, the digital dollars runners deposit and win" },
-  { name: "QuickNode", domain: "quicknode.com", logo: "/partners/quicknode.svg", url: "https://www.quicknode.com", role: "Fast connection to Solana" },
-  { name: "Strava", domain: "strava.com", logo: "/partners/strava.svg", url: "https://www.strava.com", role: "Import runs as proof" },
+  { name: "Solana", domain: "solana.com", logo: "/partners/solana.png", url: "https://solana.com", role: "Escrow, payouts and run proofs" },
+  { name: "USDC", domain: "circle.com", logo: "/partners/usdc.svg", url: "https://www.circle.com", role: "Circle's digital dollar, used for every deposit and payout" },
+  { name: "QuickNode", domain: "quicknode.com", logo: "/partners/quicknode.png", url: "https://www.quicknode.com", role: "Fast connection to Solana" },
+  { name: "Strava", domain: "strava.com", logo: "/partners/strava.png", url: "https://www.strava.com", role: "Import runs as proof" },
 ];
 
 /** Where to look for a partner's logo, in order. */
 export const partnerLogoSources = (p: Partner) => [p.logo, `https://www.google.com/s2/favicons?domain=${p.domain}&sz=128`];
+// Logo files live in /public/partners (Solana, QuickNode and Strava provided by the team; USDC from the CC0 cryptocurrency-icons set).
 export const partnerByName = (name: string) => PARTNERS.find((p) => p.name === name)!;
 export const SPONSOR_BONUSES = [10, 25, 50, 100];
 export const MAX_SPONSORS = 3;

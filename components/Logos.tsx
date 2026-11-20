@@ -9,7 +9,8 @@ import { Challenge, Sponsor, sponsorLogoUrl } from "@/lib/config";
 export function PartnerLogo({ src, name, className = "partner-logo" }: { src: string | string[]; name: string; className?: string }) {
   const sources = Array.isArray(src) ? src : [src];
   const [i, setI] = useState(0);
-  if (i >= sources.length) return null;
+  // Nothing loaded: show a neat initial badge so there's always a mark, never just words.
+  if (i >= sources.length) return <span className={`${className} logo-fallback`} aria-hidden>{name.charAt(0)}</span>;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img className={className} src={sources[i]} alt={`${name} logo`} referrerPolicy="no-referrer" onError={() => setI(i + 1)} />
