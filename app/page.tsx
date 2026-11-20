@@ -11,7 +11,7 @@ import AppShell from "@/components/AppShell";
 import Money from "@/components/Money";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
 import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, partnerLogoSources, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
-import { openConnect, speak, timeLeft, useMe, useNow } from "@/lib/client";
+import { openConnect, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
 
@@ -29,6 +29,8 @@ export default function Home() {
   const [durValue, setDurValue] = useState(15);
   const unit = DURATION_UNITS[durUnit];
   const minutes = durValue * unit.minutes;
+  const [rewardMode, setRewardMode] = useState<"pool" | "fraction">("pool");
+  const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState("");
   useEffect(() => {
@@ -54,7 +56,7 @@ export default function Home() {
       const r = await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, goalKm, runsRequired, deposit, minutes, name: me.name, address: me.address }),
+        body: JSON.stringify({ title, goalKm, runsRequired, deposit, minutes, rewardMode, visibility, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, name: me.name, address: me.address }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Could not create");
@@ -85,8 +87,8 @@ export default function Home() {
             Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
           </h1>
           <p className="lede">
-            Put money on your running goal with friends. Hit 100% and get your deposit back <b>plus</b> prize money from
-            the runners who didn&apos;t. Your wallet signs a test USDC deposit into server-managed escrow on Solana.
+            Stake USDC on your running goal with friends. Finish and get your stake back <b>plus</b> a share of what the
+            runners who didn&apos;t finish forfeited. Your stake is held on Solana until the challenge ends.
           </p>
         </div>
         <aside className="app-sponsors" aria-label="Partners">
@@ -149,7 +151,7 @@ export default function Home() {
             typeable={{ ...RANGES.goalKm, suffix: () => "km" }} />
           <Dial label="Runs to finish" options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} format={(v) => `${v} run${v > 1 ? "s" : ""}`}
             typeable={{ ...RANGES.runs, suffix: (v) => (v === 1 ? "run" : "runs") }} />
-          <Dial label="Deposit · test USDC" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`}
+          <Dial label="Stake · USDC" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`}
             typeable={{ ...RANGES.deposit, prefix: "$" }} />
           <div className="dial">
             <div className="dial-head">
@@ -187,19 +189,41 @@ export default function Home() {
             format={() => durationLabel(minutes)}
             hideHead
           />
+          <label style={{ marginTop: "1rem" }}>Who can join</label>
+          <div className="chips">
+            <button className={`chip ${visibility === "public" ? "on" : ""}`} onClick={() => setVisibility("public")}>Public</button>
+            <button className={`chip ${visibility === "private" ? "on" : ""}`} onClick={() => setVisibility("private")}>Private</button>
+          </div>
+          <p className="muted small" style={{ margin: "0.35rem 0 0" }}>
+            {visibility === "public" ? "Anyone can find and join this challenge." : "Hidden from the list. Only friends with your invite link can join."}
+          </p>
+          <label style={{ marginTop: "1rem" }}>How rewards work</label>
+          <div className="chips">
+            <button className={`chip ${rewardMode === "pool" ? "on" : ""}`} onClick={() => setRewardMode("pool")}>All or nothing</button>
+            <button className={`chip ${rewardMode === "fraction" ? "on" : ""}`} onClick={() => setRewardMode("fraction")}>By fraction</button>
+          </div>
+          <p className="muted small" style={{ margin: "0.35rem 0 0" }}>
+            {rewardMode === "pool"
+              ? "Finish every run to share the pool. Anyone who doesn't finish forfeits their stake (5% fee on forfeited stakes)."
+              : "You get back the share of your stake that matches the runs you finish: 85% or more gets everything back, and only a full 100% earns a prize."}
+          </p>
           <button className="btn primary block" style={{ marginTop: "1.25rem" }} disabled={creating} onClick={create}>
             {creating ? "Locking your deposit…" : me ? `Create & lock ${money(deposit)}` : "Connect wallet to create"}
           </button>
           <p className="muted small" style={{ textAlign: "center", margin: "8px 0 0" }}>
-            Test USDC from your connected wallet. Small devnet SOL balance required for fees. Use 15 min for demos.
+            USDC is taken from your connected wallet. A small amount of SOL is needed for network fees.
           </p>
           {err && <p className="err">{err}</p>}
         </aside>
       </div>
       <section className="steps" id="how">
-        <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your 10 test USDC is locked in escrow.</div>
-        <div className="step"><b>2 · Run and prove it</b>GPS and a voice coach track every km. Add a photo or a Strava run as proof.</div>
-        <div className="step"><b>3 · Get rewarded</b>100% = deposit + prize. 85%+ = deposit back. Less = the % you finished.</div>
+        <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs and choose how much USDC you want to stake. Your stake is locked until the challenge ends.</div>
+        <div className="step"><b>2 · Run and check in</b>Start your run in the app on your phone and finish it, then take one live photo check-in per day. We check your run time against the app&apos;s session clock, plus the distance and pace. You can also import a Strava run. It&apos;s approved, sent for review, or rejected, with the reason.</div>
+        <div className="step"><b>3 · Get rewarded</b>
+          The creator picks one of two modes.<br />
+          <b style={{ display: "inline" }}>All or nothing:</b> finishers split the pool, including the stakes of those who didn&apos;t. If everyone finishes, all stakes come back. If no one does, every stake is refunded.<br />
+          <b style={{ display: "inline" }}>By fraction:</b> 100% of runs = stake back + prize. 85% or more = stake back. Less = the share you finished.
+        </div>
       </section>
 
       <section className="partners" aria-label="Powered by">
@@ -215,13 +239,12 @@ export default function Home() {
         </div>
       </section>
 
-      <p className="foot">Hackathon demo · Solana devnet · test money only</p>
+      <p className="foot">Built on Solana</p>
 
       {!me && (
         <NameGate
           onJoin={async (n, wallet) => {
             await join(n, wallet);
-            speak(`Welcome to Lock and Run, ${n}! Let's get running.`);
           }}
         />
       )}

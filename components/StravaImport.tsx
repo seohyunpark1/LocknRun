@@ -1,11 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { pace } from "@/lib/config";
-import { speak } from "@/lib/client";
 import { PartnerLogo } from "@/components/Logos";
 
 type StravaRun = { id: number; name: string; km: number; sec: number; startedAt: number; used: boolean };
-type Props = { challengeId: string; address: string; onImported: (data: { challenge: unknown; run: { counts: boolean }; reason?: string }) => void };
+type Props = { challengeId: string; address: string; onImported: (data: { challenge: unknown; run: { counts: boolean; status?: string }; reason?: string }) => void };
 
 /** Lets a runner connect Strava and use a run they recorded there. The server verifies it with Strava. */
 export default function StravaImport({ challengeId, address, onImported }: Props) {
@@ -40,12 +39,12 @@ export default function StravaImport({ challengeId, address, onImported }: Props
       const r = await fetch(`/api/challenges/${challengeId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "strava", address, activityId: run.id }),
+        body: JSON.stringify({ action: "strava", activityId: run.id }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Couldn't import that run.");
       onImported(d);
-      speak(d.run.counts ? `Strava run added! ${run.km} kilometers. That one counts.` : `Run added, but it doesn't count. ${d.reason || ""}`);
+      if (!d.run.counts) setMsg(d.reason || (d.run.status === "pending" ? "Sent for review." : "That run doesn't count."));
       loadRuns();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Something went wrong");
@@ -68,7 +67,7 @@ export default function StravaImport({ challengeId, address, onImported }: Props
       {!status.athlete ? (
         <>
           <p className="muted small" style={{ margin: "0.25rem 0 0.75rem" }}>
-            Already track runs with Strava? Connect it and use those runs as proof.
+            Already track runs with Strava? Connect it and import them as your check-in (no photo needed).
           </p>
           <a className="btn block strava-btn" href={`/api/strava/connect?address=${address}&back=${back}`}>
             Connect with Strava

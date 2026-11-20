@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Challenge, explorerAddress, partnerByName, partnerLogoSources } from "@/lib/config";
 import { computePayouts } from "@/lib/settle";
 import { weeklyRanking } from "@/lib/streaks";
-import { speak, useMe } from "@/lib/client";
+import { useMe } from "@/lib/client";
 import Celebration, { Win } from "./Celebration";
 import { PartnerLogo } from "./Logos";
 import Money from "./Money";
@@ -76,18 +76,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         if ((p.payout || 0) <= 0) return; // nothing back: no pop-up
         const { payouts } = computePayouts(c);
         const mine = payouts.find((x) => x.address === address)!;
-        const nobodyWon = !payouts.some((x) => x.tier === "full");
-        const kind = nobodyWon ? "refund" : mine.tier;
-        setWin({ c, payout: p.payout || 0, paySig: p.paySig, kind, rate: mine.rate });
-        speak(
-          kind === "full"
-            ? `Congratulations! You hit 100 percent and won ${p.payout} dollars.`
-            : kind === "safe"
-              ? `So close! Your ${c.deposit} dollars are back.`
-              : kind === "refund"
-                ? `Your ${c.deposit} dollars are back in your account.`
-                : `You got ${p.payout} dollars back.`
-        );
+        setWin({ c, payout: p.payout || 0, paySig: p.paySig, kind: mine.tier === "forfeited" ? "partial" : mine.tier, rate: mine.rate });
         return;
       }
     }
@@ -156,7 +145,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           <WalletStatus variant="side" />
-          <div className="small" style={{ color: "var(--faint)", marginTop: "0.75rem" }}>Solana devnet · test money only</div>
+          <div className="small" style={{ color: "var(--faint)", marginTop: "0.75rem" }}>Built on Solana</div>
         </div>
       </aside>
 

@@ -28,7 +28,7 @@ export default function WalletStatus({ variant = 'side' }: { variant?: 'side' | 
           <button className="link-btn" onClick={() => disconnect().catch(e => setError(e.message))}>Disconnect</button>
         </div>
       )}
-      {pending && <button className="btn warn" disabled={busy} onClick={retry}>{busy ? 'Confirming…' : 'Retry deposit confirmation'}</button>}
+      {pending && <button className="btn warn" disabled={busy} onClick={retry}>{busy ? 'Confirming…' : 'Retry stake confirmation'}</button>}
       {error && <p className="err">{error}</p>}
     </div>
   );

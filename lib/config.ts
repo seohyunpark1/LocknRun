@@ -42,18 +42,50 @@ export function durationLabel(min: number) {
 export const MIN_PACE_SEC_PER_KM = 150; // faster than 2:30/km = probably a bike or car
 export const MAX_PACE_SEC_PER_KM = 1200; // slower than 20:00/km = walking around, doesn't count
 
+/** approved: counts toward the goal. pending: needs review and holds that day's check-in slot. rejected: does not count. */
+export type CheckInStatus = "approved" | "pending" | "rejected";
+
 export type Run = {
   id: string;
   km: number;
   sec: number;
-  at: number;
-  counts: boolean;
-  source?: "gps" | "strava";
-  photo?: boolean; // a photo proof is stored for this run (GET /api/photos/<run id>)
+  at: number; // when the check-in was submitted
+  startedAt?: number; // when the server-issued run session began; decides the room day
+  roomDay?: string; // YYYY-MM-DD in the challenge's time zone
+  counts: boolean; // true only when approved
+  status?: CheckInStatus; // missing on older runs: counts decides
+  reason?: string; // why a check-in is pending or rejected
+  source?: "gps" | "strava"; // phone-recorded movement, or a run imported from Strava
+  photo?: boolean; // the photo check-in is stored for this run (GET /api/photos/<run id>)
   stravaId?: number; // Strava activity id, for imported runs
   stravaName?: string;
   proofSig?: string; // Solana memo transaction that stamps the proof on-chain
 };
+
+/** Pace between these bounds is accepted automatically; the fastest sliver goes to review. */
+export const REVIEW_PACE_SEC_PER_KM = 210; // faster than 3:30/km needs a second look
+/** After a challenge ends, unresolved pending check-ins can hold the payout for this long. */
+export const REVIEW_WINDOW_MS = 24 * 3600_000;
+/** Participants may not run farther than this multiple of the goal in one check-in without review. */
+export const MAX_SESSION_SEC = 6 * 3600;
+
+/** The room day (YYYY-MM-DD) of a moment, in the challenge's fixed time zone. */
+export function roomDay(at: number, timeZone = "UTC") {
+  try {
+    return new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
+  } catch {
+    return new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(at);
+  }
+}
+export const validTimeZone = (tz: unknown): tz is string => {
+  try { new Intl.DateTimeFormat("en-US", { timeZone: String(tz) }); return typeof tz === "string" && tz.length < 64; } catch { return false; }
+};
+/** Number of distinct room days a challenge window touches. */
+export function roomDaysIn(c: Pick<Challenge, "createdAt" | "endsAt" | "timeZone">) {
+  const days = new Set<string>();
+  for (let t = c.createdAt; t < c.endsAt + 3_600_000; t += 3_600_000) days.add(roomDay(Math.min(t, c.endsAt), c.timeZone));
+  return days.size;
+}
 
 // Biggest photo the server accepts after in-browser compression (~0.45 MB).
 export const MAX_PHOTO_BYTES = 450_000;
@@ -67,6 +99,12 @@ export type Participant = {
   payout?: number; // set at settlement
   paySig?: string; // escrow -> runner
 };
+
+/** pool = all-or-nothing: finishers split the pool. fraction = Challengers-style tiers by share of runs completed. */
+export type RewardMode = "pool" | "fraction";
+export type Visibility = "public" | "private";
+export const rewardModeOf = (c: Pick<Challenge, "rewardMode">): RewardMode => c.rewardMode ?? "pool";
+export const isPrivate = (c: Pick<Challenge, "visibility">) => c.visibility === "private";
 
 export type ChallengeStatus = "draft" | "active" | "settling" | "settled";
 
@@ -105,6 +143,10 @@ export type Challenge = {
   createdAt: number;
   endsAt: number;
   creatorName: string;
+  timeZone?: string; // IANA zone that defines room days; displayed before joining
+  rewardMode?: RewardMode; // how the pool is shared; missing = "pool"
+  visibility?: Visibility; // missing = public
+  inviteCode?: string; // private challenges: the secret in the invite link; only participants ever see it
   status: ChallengeStatus;
   participants: Participant[];
   pendingDeposits?: string[];
@@ -119,6 +161,7 @@ export const potOf = (c: Challenge) => c.deposit * c.participants.length + bonus
 export function countedRuns(p: Participant) {
   return p.runs.filter((r) => r.counts).length;
 }
+export const runStatus = (r: Run): CheckInStatus => r.status ?? (r.counts ? "approved" : "rejected");
 
 export function isFinisher(c: Challenge, p: Participant) {
   return countedRuns(p) >= c.runsRequired;

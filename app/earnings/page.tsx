@@ -10,7 +10,7 @@ import { Challenge, countedRuns, explorerAddress, explorerTx, money } from "@/li
 import { computePayouts, prizeBreakdown } from "@/lib/settle";
 import Badges from "@/components/Badges";
 import AdSlot from "@/components/AdSlot";
-import { openConnect, speak, timeLeft, useMe, useNow } from "@/lib/client";
+import { openConnect, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Row = {
   c: Challenge;
@@ -63,8 +63,8 @@ export default function EarningsPage() {
         const p = c.participants.find((x) => x.address === me.address)!;
         const { payouts } = computePayouts(c);
         const mine = payouts.find((x) => x.address === me.address)!;
-        const nobodyWon = !payouts.some((x) => x.tier === "full");
-        const bonusShare = mine.tier === "full" && !nobodyWon ? prizeBreakdown(c).bonusShare : 0;
+        const nobodyWon = mine.tier === "refund";
+        const bonusShare = mine.tier === "finished" ? prizeBreakdown(c).bonusShare : 0;
         const live = c.status === "active" && now < c.endsAt;
         let state: Row["state"] = "live";
         let payout = 0;
@@ -118,7 +118,6 @@ export default function EarningsPage() {
       sessionStorage.removeItem("lockrun.withdrawal");
       setPendingTransfer(false);
       setMsg({ ok: true, text: `Sent ${money(amt)}.`, sig: d2.signature });
-      speak(`Done! ${amt} dollars are on their way.`);
       setAmount("");
       load();
     } catch (e) {
@@ -159,7 +158,7 @@ export default function EarningsPage() {
           <div className="connect-card">
             <div>
               <b>Connect your wallet to see your earnings</b>
-              <p className="muted small" style={{ margin: "0.25rem 0 0" }}>Sign-in is a free signature. No money moves until you approve a deposit.</p>
+              <p className="muted small" style={{ margin: "0.25rem 0 0" }}>Sign-in is a free signature. No money moves until you approve a stake.</p>
             </div>
             <button className="btn primary" onClick={openConnect}>Connect wallet</button>
           </div>
@@ -296,7 +295,7 @@ export default function EarningsPage() {
                   {me.address.slice(0, 4)}…{me.address.slice(-4)} ↗
                 </a>
                 <br />
-                Test USDC stays on Solana Devnet. This transfer does not convert it to cash.
+                This sends USDC to another Solana wallet. It does not convert it to cash.
               </p>
             )}
             <div className="phone-only" style={{ marginTop: "0.75rem" }}>
@@ -307,7 +306,7 @@ export default function EarningsPage() {
         <div style={{ marginTop: "1.5rem" }}>
           <AdSlot />
         </div>
-        <p className="foot">Hackathon demo · Solana devnet · test money only</p>
+        <p className="foot">Built on Solana</p>
       </main>
     </AppShell>
   );

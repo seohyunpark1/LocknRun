@@ -79,7 +79,7 @@ export function sponsorAddress() { return sponsor().publicKey.toBase58(); }
 
 /**
  * Stamps a run's proof on Solana: a memo-only transaction (paid by the sponsor) containing the
- * challenge, distance, time and a SHA-256 fingerprint of the photo or the Strava activity id.
+ * challenge, distance, time and a SHA-256 fingerprint of the photo check-in.
  * Anyone can later check that the proof shown in the app matches what was recorded on-chain.
  */
 export async function stampProof(memo: string) {

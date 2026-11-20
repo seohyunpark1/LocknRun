@@ -7,8 +7,8 @@ import { prizeBreakdown } from "@/lib/settle";
 import { PartnerLogo, SponsorMark } from "./Logos";
 import Money from "./Money";
 
-/** full = 100% (deposit + prize), safe = 85–99% (deposit back), partial = below 85% (part back), refund = nobody hit 100% */
-export type Win = { c: Challenge; payout: number; paySig?: string; kind: "full" | "safe" | "partial" | "refund"; rate: number };
+/** finished = goal completed (stake back + share of the pool), safe = 85–99% (fraction mode: stake back), partial = below 85% (part back), refund = nobody finished so every stake was returned */
+export type Win = { c: Challenge; payout: number; paySig?: string; kind: "finished" | "safe" | "partial" | "refund"; rate: number };
 
 
 const COLORS = ["#22c55e", "#16a34a", "#86efac", "#fde047", "#34d399", "#bbf7d0"];
@@ -17,23 +17,23 @@ const COLORS = ["#22c55e", "#16a34a", "#86efac", "#fde047", "#34d399", "#bbf7d0"
 export default function Celebration({ win, name, onClose }: { win: Win; name: string; onClose: () => void }) {
   const { c, payout, paySig, kind, rate } = win;
   const refund = kind === "refund";
-  const won = kind === "full";
+  const won = kind === "finished";
   const pb = prizeBreakdown(c);
   const pct = Math.round(rate * 100);
   const heading = won
     ? `Congratulations, ${name}!`
     : refund
-      ? `Your money is back, ${name}`
+      ? `Your stake is back, ${name}`
       : kind === "safe"
         ? `So close, ${name}!`
         : `You got some back, ${name}`;
   const sub = won
-    ? `You hit 100% on “${c.title}” and won prize money.`
+    ? `You finished “${c.title}”. Your stake is back${payout > c.deposit ? ", plus your share of the pool." : "."}`
     : refund
-      ? "Nobody hit 100%, so every deposit was refunded."
+      ? "Nobody finished this challenge, so every stake was refunded."
       : kind === "safe"
-        ? `You hit ${pct}%, so your full deposit is back. Hit 100% next time for prize money.`
-        : `You hit ${pct}%, so ${pct}% of your ${money(c.deposit)} deposit is back.`;
+        ? `You finished ${pct}%, so your full stake is back. Finish every run next time to earn a prize.`
+        : `You finished ${pct}%, so ${pct}% of your ${money(c.deposit)} stake is back.`;
   // The sponsor who put in the most is front and center: they're paying for this moment.
   const ranked = (c.sponsors || []).map((s, index) => ({ s, index })).sort((x, y) => y.s.amount - x.s.amount);
   const top = ranked[0];
@@ -78,7 +78,7 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
               <SponsorMark c={c} index={top.index} s={top.s} size="lg" />
             </div>
             <div className="muted small">
-              {refund ? "Deposit returned" : "Presented by"} <b className="celebrate-presenter">{top.s.name}</b>
+              {refund ? "Stake returned" : "Presented by"} <b className="celebrate-presenter">{top.s.name}</b>
               {others > 0 && <> + {others} more</>}
             </div>
           </>
@@ -86,18 +86,18 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="celebrate-applogo" src="/icon-192.png" alt="Lock&Run" />
-            <div className="muted small">{refund ? "Deposit returned" : "Challenge complete"}</div>
+            <div className="muted small">{refund ? "Stake returned" : "Challenge complete"}</div>
           </>
         )}
-        <div className={`tier-pill tier-${kind}`}>{refund ? "Refund" : `${pct}% achieved`}</div>
+        <div className={`tier-pill tier-${kind}`}>{refund ? "Refund" : kind === "finished" ? "Finished" : `${pct}% finished`}</div>
         <h2 className="celebrate-title">{heading}</h2>
         <div className={`celebrate-amt ${won ? "" : "muted-amt"}`}><Money sign="+" n={payout} /></div>
         <div className="muted">{sub}</div>
 
         {won && (
           <div className="celebrate-break">
-            <div><span>Your deposit back</span><b>{money(c.deposit)}</b></div>
-            {pb.fromOthers > 0 && <div><span>Prize from other runners</span><b>+{money(pb.fromOthers)}</b></div>}
+            <div><span>Your stake back</span><b>{money(c.deposit)}</b></div>
+            {pb.fromOthers > 0 && <div><span>Share of forfeited stakes</span><b>+{money(pb.fromOthers)}</b></div>}
             {pb.bonusShare > 0 && (
               <div>
                 <span className="celebrate-sponsor">

@@ -94,7 +94,7 @@ export default function WalletProvider({ children }: { children: React.ReactNode
   async function signWithdrawal(transaction: string, amount: number, to: string, feePayer: string) {
     if (!connected || !me) throw new Error('Connect your wallet first.');
     inspectWalletTransfer(Uint8Array.from(atob(transaction), c => c.charCodeAt(0)), { from: me.address, to, amount, feePayer });
-    if (!window.confirm(`Send ${amount} test USDC\nFrom: ${me.address}\nTo: ${to}\nNetwork: Solana Devnet\nNetwork fee: paid from your wallet in SOL\nApprove this transfer in your external wallet?`)) throw new Error('Transfer cancelled.');
+    if (!window.confirm(`Send ${amount} USDC\nFrom: ${me.address}\nTo: ${to}\nNetwork: Solana Devnet\nNetwork fee: paid from your wallet in SOL\nApprove this transfer in your external wallet?`)) throw new Error('Transfer cancelled.');
     // Re-prepare after human review to avoid handing the wallet a stale blockhash.
     const response = await fetch('/api/withdrawals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'prepare', to, amount }) });
     const fresh = await response.json();
@@ -110,7 +110,7 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     const s = prepared.summary;
     if (s.mint !== WALLET_USDC_MINT || s.network !== 'Solana Devnet') throw new Error('This demo only supports Circle USDC on Solana Devnet.');
     if (s.feePayer !== me.address) throw new Error('Wallet changed. Start again.');
-    if (!window.confirm(`Lock ${s.amount} test USDC${s.kind === "sponsor" ? " as a sponsor bonus" : ""}\nNetwork: ${s.network}\nUSDC mint: ${s.mint}\nRecipient (server-managed escrow): ${s.recipient}\nFee payer: ${s.feePayer}\nNetwork fee: ${s.feeSol} SOL, plus token account rent if needed\nSimulation passed.\n${s.kind === "sponsor" ? "Bonus is split among finishers; a zero-finisher refund returns to" : "Rewards return to"} ${me.address}.\n\nContinue to your wallet to approve?`)) throw new Error('Deposit cancelled. No transaction signed.');
+    if (!window.confirm(`Lock ${s.amount} USDC${s.kind === "sponsor" ? " as a sponsor bonus" : ""}\nNetwork: ${s.network}\nUSDC mint: ${s.mint}\nRecipient (server-managed escrow): ${s.recipient}\nFee payer: ${s.feePayer}\nNetwork fee: ${s.feeSol} SOL, plus token account rent if needed\nSimulation passed.\n${s.kind === "sponsor" ? "Bonus is split among finishers; a zero-finisher refund returns to" : "Rewards return to"} ${me.address}.\n\nContinue to your wallet to approve?`)) throw new Error('Deposit cancelled. No transaction signed.');
     const response = await fetch('/api/deposits', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'refresh', intentId: prepared.intentId }) });
     const fresh: Prepared & { error?: string } = await response.json();
     if (!response.ok) throw new Error(fresh.error || 'Could not refresh deposit.');

@@ -58,7 +58,7 @@ export default function NameGate({ onJoin }: { onJoin: (name: string, wallet?: W
         <button className="connect-x" aria-label="Close" onClick={close}>×</button>
         <div className="connect-badge" aria-hidden><span className="brand-dot" /></div>
         <h2 id="connect-title">Run with your wallet</h2>
-        <p className="muted small connect-lede">Lock test USDC on a running goal and get paid when you finish. Your wallet signs everything; Lock&amp;Run never holds your keys.</p>
+        <p className="muted small connect-lede">Stake USDC on a running goal and get your rewards when you finish. Your wallet signs everything; Lock&amp;Run never holds your keys.</p>
 
         <label htmlFor="runner-name">Your runner name</label>
         <input id="runner-name" className="input" maxLength={24} placeholder="e.g. Daniel" autoComplete="nickname" value={name}
@@ -82,7 +82,7 @@ export default function NameGate({ onJoin }: { onJoin: (name: string, wallet?: W
             </button>
             <ol className="connect-steps small muted">
               <li><b>Sign in:</b> a free signature that proves the wallet is yours. No money moves.</li>
-              <li><b>Each deposit</b> is a separate approval in your wallet, after you review it.</li>
+              <li><b>Each stake</b> is a separate approval in your wallet, after you review it. You need USDC to stake and a little SOL for network fees.</li>
             </ol>
           </>
         ) : (
@@ -101,7 +101,7 @@ export default function NameGate({ onJoin }: { onJoin: (name: string, wallet?: W
         )}
 
         <div className="faucets small">
-          <span className="muted">Need test funds?</span>
+          <span className="muted">Need Devnet funds?</span>
           <a href="https://faucet.solana.com" target="_blank" rel="noreferrer">Devnet SOL ↗</a>
           <a href="https://faucet.circle.com" target="_blank" rel="noreferrer">Devnet USDC ↗</a>
         </div>
