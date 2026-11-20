@@ -315,6 +315,11 @@ label { display: block; font-weight: 500; font-size: 0.85rem; color: var(--muted
 @media (min-width: 1024px) {
   .board { background: #fff; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--card-shadow); padding: 0 1.1rem; gap: 0; }
   .list.board > .lb:first-child { border-top: 0; }
+}
+/* The wide table layout needs ~34rem. It switches on by the board's own width (not the window's), so when the
+   challenge page is squeezed between the sidebar and the rewards column the rows wrap instead of being cut off. */
+.board { container: board / inline-size; }
+@container board (min-width: 36rem) {
   .lb { grid-template-columns: 2rem minmax(7rem, 1.3fr) minmax(7rem, 1fr) 5.5rem 7.5rem; grid-template-areas: "rank name prog pace pay" "rank rcpt rcpt rcpt rcpt" "rank proofs proofs proofs proofs"; column-gap: 1rem; row-gap: 0.3rem; padding: 0.95rem 0; }
   .lb-head .lb-rcpt { display: none; }
   .lb-head .lb-pace { color: var(--faint); font-size: 0.75rem; }

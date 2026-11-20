@@ -60,7 +60,7 @@ html { scroll-behavior: smooth; }
 }
 
 /* ---------- Web leaderboard: room for "100% · $102 USDC" on one line ---------- */
-@media (min-width: 1024px) {
+@container board (min-width: 36rem) {
   .lb { grid-template-columns: 2rem minmax(7rem, 1.3fr) minmax(6rem, 1fr) 5.5rem minmax(9.5rem, auto); }
   .lb-pay .small { white-space: nowrap; }
 }
@@ -188,7 +188,6 @@ details.more p { margin: 0.1rem 0 0; line-height: 1.55; }
   .tabbar { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .tab { min-width: 0; }
   .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .feed-item, .feed-body, .board, .lb, .lb > * { min-width: 0; }
   .lb-pay, .payout { min-width: 0; max-width: 100%; }
 }
 @media (max-width: 380px) {
@@ -196,3 +195,8 @@ details.more p { margin: 0.1rem 0 0; line-height: 1.55; }
   .lb { column-gap: 0.5rem; }
   .board { padding-left: 0.75rem; padding-right: 0.75rem; }
 }
+
+/* Flex/grid children can't shrink below their longest word unless told: let feed cards and rows fit their column at any width. */
+.feed-item, .feed-body, .board, .lb, .lb > * { min-width: 0; }
+.feed-who b { min-width: 0; max-width: 100%; }
+.feed-list, .feed { min-width: 0; max-width: 100%; }
