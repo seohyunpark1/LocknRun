@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { walletSession, walletAuthFailure } from "@/lib/wallet-auth";
+import { canView } from "@/lib/access";
 import { acquireLock, getChallenge, kvGet, kvSet, releaseLock } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -14,7 +15,8 @@ const validId = (s: unknown) => typeof s === "string" && /^[a-f0-9]{10}$/.test(s
 export async function GET(req: Request) {
   const id = new URL(req.url).searchParams.get("challenge");
   if (!validId(id)) return NextResponse.json({ error: "Invalid challenge" }, { status: 400 });
-  const [all, me] = await Promise.all([kvGet<Cheers>(key(id!)), walletSession(req)]);
+  const [all, me, challenge] = await Promise.all([kvGet<Cheers>(key(id!)), walletSession(req), getChallenge(id!)]);
+  if (challenge && !canView(challenge, me)) return NextResponse.json({ counts: {}, mine: [] }); // private: members only
   const cheers = all || {};
   const counts: Record<string, number> = {};
   const mine: string[] = [];
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
   if (!validId(b.challengeId) || !validId(b.runId)) return NextResponse.json({ error: "Invalid check-in" }, { status: 400 });
   const c = await getChallenge(b.challengeId);
   const run = c?.participants.flatMap((p) => p.runs.map((r) => ({ r, owner: p.address }))).find((x) => x.r.id === b.runId);
-  if (!c || !run) return NextResponse.json({ error: "Check-in not found" }, { status: 404 });
+  if (!c || !run || !canView(c, address)) return NextResponse.json({ error: "Check-in not found" }, { status: 404 });
   if (run.owner === address) return NextResponse.json({ error: "You can't cheer your own check-in." }, { status: 400 });
 
   const lock = await acquireLock(key(c.id), 10);
