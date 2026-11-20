@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
-import { Challenge, DEPOSITS, DURATIONS, GOAL_KMS, RUNS_REQUIRED, clean } from "@/lib/config";
+import { Challenge, DURATION_LIMITS, RANGES, clean } from "@/lib/config";
 import { escrowAddress, escrowBalance, lockDeposit } from "@/lib/solana-server";
 import { insertChallenge, listChallenges, newId } from "@/lib/store";
 
@@ -29,14 +29,18 @@ function limited(ip: string) {
 export async function POST(req: Request) {
   try {
     const b = await req.json();
-    const goalKm = Number(b.goalKm);
+    const goalKm = Math.round(Number(b.goalKm) * 10) / 10;
     const runsRequired = Number(b.runsRequired);
     const deposit = Number(b.deposit);
     const minutes = Number(b.minutes);
-    if (!GOAL_KMS.includes(goalKm) || !RUNS_REQUIRED.includes(runsRequired) || !DEPOSITS.includes(deposit))
-      return NextResponse.json({ error: "Pick the challenge options." }, { status: 400 });
-    if (!DURATIONS.includes(minutes))
-      return NextResponse.json({ error: "Pick how long the challenge lasts." }, { status: 400 });
+    const inRange = (v: number, r: { min: number; max: number }) => isFinite(v) && v >= r.min && v <= r.max;
+    if (!inRange(goalKm, RANGES.goalKm)) return NextResponse.json({ error: "Distance must be 0.5–42.2 km." }, { status: 400 });
+    if (!Number.isInteger(runsRequired) || !inRange(runsRequired, RANGES.runs))
+      return NextResponse.json({ error: "Runs must be a whole number from 1 to 30." }, { status: 400 });
+    if (!Number.isInteger(deposit) || !inRange(deposit, RANGES.deposit))
+      return NextResponse.json({ error: "Deposit must be a whole dollar amount from $1 to $100." }, { status: 400 });
+    if (!Number.isInteger(minutes) || !inRange(minutes, DURATION_LIMITS))
+      return NextResponse.json({ error: "Pick how long the challenge lasts (5 minutes to 6 months)." }, { status: 400 });
     try {
       new PublicKey(b.address);
     } catch {

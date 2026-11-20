@@ -106,6 +106,12 @@ listed first. Example: 3 runners × $10 + a $50 bonus, 2 finish → each finishe
   directly with Strava. **Next step:** Garmin / Apple Health import and photo checks (location and time metadata).
 - **On-ramp:** the sponsor wallet stands in for a card or Apple Pay payment.
 
+## Creating a challenge
+
+Distance, runs, deposit and "ends in" each have a timer-style dial (swipe or drag), and the big value next to each
+label is typeable: tap it and type any number. Allowed ranges: 0.5–42.2 km per run, 1–30 runs, $1–$100 deposit,
+and 5 minutes to 6 months (pick Min / Hour / Day / Week / Month, then the number). The server enforces the same ranges.
+
 ## Getting paid (My earnings page)
 
 `/earnings` shows each runner's **balance** (their USDC, read live from Solana), what's been **paid out**, sponsor

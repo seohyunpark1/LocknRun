@@ -8,19 +8,25 @@ export const MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
 // Challenge options (server only accepts these).
 export const DEPOSITS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50];
+// Typed values are allowed anywhere in these ranges (the dials just offer common stops).
+export const RANGES = {
+  goalKm: { min: 0.5, max: 42.2, step: 0.1 },
+  runs: { min: 1, max: 30, step: 1 },
+  deposit: { min: 1, max: 100, step: 1 },
+};
 export const GOAL_KMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 21];
 export const RUNS_REQUIRED = [1, 2, 3, 4, 5, 6, 7];
 // "Ends in": pick a unit, then turn the dial for the number.
 export const DURATION_UNITS = [
-  { key: "min", label: "Min", minutes: 1, values: [5, 10, 15, 20, 30, 45] },
-  { key: "hour", label: "Hour", minutes: 60, values: [1, 2, 3, 4, 5, 6, 8, 10, 12, 18] },
-  { key: "day", label: "Day", minutes: 1440, values: [1, 2, 3, 4, 5, 6] },
-  { key: "week", label: "Week", minutes: 10080, values: [1, 2, 3, 4] },
-  { key: "month", label: "Month", minutes: 43200, values: [1, 2, 3, 4, 5, 6] }, // 1 month = 30 days
-] as const;
+  { key: "min", label: "Min", word: "min", minutes: 1, values: [5, 10, 15, 20, 30, 45], min: 5, max: 59 },
+  { key: "hour", label: "Hour", word: "hour", minutes: 60, values: [1, 2, 3, 4, 5, 6, 8, 10, 12, 18], min: 1, max: 23 },
+  { key: "day", label: "Day", word: "day", minutes: 1440, values: [1, 2, 3, 4, 5, 6], min: 1, max: 30 },
+  { key: "week", label: "Week", word: "week", minutes: 10080, values: [1, 2, 3, 4], min: 1, max: 12 },
+  { key: "month", label: "Month", word: "month", minutes: 43200, values: [1, 2, 3, 4, 5, 6], min: 1, max: 6 }, // 1 month = 30 days
+];
 
-/** Every duration (in minutes) the server accepts. */
-export const DURATIONS: number[] = DURATION_UNITS.flatMap((u) => u.values.map((v) => v * u.minutes));
+/** Shortest and longest challenge the server accepts, in minutes. */
+export const DURATION_LIMITS = { min: 5, max: 6 * 43200 };
 
 /** Full label: 15 min, 2 hours, 3 days, 1 week, 2 months */
 export function durationLabel(min: number) {

@@ -4,9 +4,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NameGate from "@/components/NameGate";
 import Dial from "@/components/Dial";
+import TypeValue from "@/components/TypeValue";
 import AppShell from "@/components/AppShell";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
-import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
+import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
@@ -124,13 +125,23 @@ export default function Home() {
           <h2>Start a challenge</h2>
           <label>Name it (optional)</label>
           <input className="input" maxLength={60} placeholder="Morning 3K crew" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <Dial label="Distance per run" options={GOAL_KMS} value={goalKm} onChange={setGoalKm} format={(v) => `${v} km`} />
-          <Dial label="Runs to finish" options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} format={(v) => `${v} run${v > 1 ? "s" : ""}`} />
-          <Dial label="Deposit" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`} />
+          <Dial label="Distance per run" options={GOAL_KMS} value={goalKm} onChange={setGoalKm} format={(v) => `${v} km`}
+            typeable={{ ...RANGES.goalKm, suffix: () => "km" }} />
+          <Dial label="Runs to finish" options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} format={(v) => `${v} run${v > 1 ? "s" : ""}`}
+            typeable={{ ...RANGES.runs, suffix: (v) => (v === 1 ? "run" : "runs") }} />
+          <Dial label="Deposit" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`}
+            typeable={{ ...RANGES.deposit, prefix: "$" }} />
           <div className="dial">
             <div className="dial-head">
               <span>Ends in</span>
-              <b>{durationLabel(minutes)}</b>
+              <TypeValue
+                label={`Ends in (${unit.word}s)`}
+                value={durValue}
+                min={unit.min}
+                max={unit.max}
+                suffix={unit.key === "min" ? "min" : `${unit.word}${durValue === 1 ? "" : "s"}`}
+                onCommit={setDurValue}
+              />
             </div>
             <div className="chips unit-chips">
               {DURATION_UNITS.map((u, i) => (
@@ -150,7 +161,7 @@ export default function Home() {
           <Dial
             key={unit.key}
             label={`Number of ${unit.label.toLowerCase()}${unit.key === "min" ? "utes" : "s"}`}
-            options={unit.values as unknown as number[]}
+            options={unit.values}
             value={durValue}
             onChange={setDurValue}
             format={() => durationLabel(minutes)}

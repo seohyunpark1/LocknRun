@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import TypeValue from "./TypeValue";
 
 type Props = {
   label: string;
@@ -12,6 +13,8 @@ type Props = {
   tick?: (v: number) => string;
   /** Hide the label row (when another control above already shows it) */
   hideHead?: boolean;
+  /** Make the big value typeable: any number in [min, max] (it's added to the ruler if it isn't a preset stop). */
+  typeable?: { min: number; max: number; step?: number; prefix?: string; suffix?: (v: number) => string };
 };
 
 const CELL_REM = 3.25; // width of one stop on the ruler
@@ -20,7 +23,12 @@ const CELL_REM = 3.25; // width of one stop on the ruler
  * Kitchen-timer style picker: a ruler with tick marks scrolls under a fixed ▼ pointer
  * and snaps to the nearest value. Works with swipe (phone), trackpad, mouse drag and arrow keys.
  */
-export default function Dial({ label, options, value, onChange, format, tick = String, hideHead = false }: Props) {
+export default function Dial({ label, options: presets, value, onChange, format, tick = String, hideHead = false, typeable }: Props) {
+  // A typed value that isn't a preset stop gets its own spot on the ruler.
+  const options = useMemo(
+    () => (presets.includes(value) ? presets : [...presets, value].sort((a, b) => a - b)),
+    [presets, value]
+  );
   const track = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(Math.max(0, options.indexOf(value)));
   const settleTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -96,7 +104,20 @@ export default function Dial({ label, options, value, onChange, format, tick = S
       {!hideHead && (
         <div className="dial-head">
           <span>{label}</span>
-          <b>{format(options[live])}</b>
+          {typeable ? (
+            <TypeValue
+              label={label}
+              value={value}
+              min={typeable.min}
+              max={typeable.max}
+              step={typeable.step}
+              prefix={typeable.prefix}
+              suffix={typeable.suffix?.(value)}
+              onCommit={onChange}
+            />
+          ) : (
+            <b>{format(options[live] ?? value)}</b>
+          )}
         </div>
       )}
       <div className="dial-body">
