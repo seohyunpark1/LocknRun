@@ -180,3 +180,19 @@ details.more p { margin: 0.1rem 0 0; line-height: 1.55; }
 .rule-badge.private { background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9; }
 .rule-badge-hint { font-weight: 500; opacity: 0.85; margin-left: 0.3em; }
 @media (max-width: 480px) { .rule-badge-hint { display: none; } }
+
+/* ---------- Narrow phones: nothing may be wider than the screen ---------- */
+/* 1fr columns can't shrink below their longest word, so five tab labels forced the page wider than 360px
+   and the leaderboard's right edge (payout, progress bar) was cut off. */
+@media (max-width: 1023px) {
+  .tabbar { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .tab { min-width: 0; }
+  .tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .feed-item, .feed-body, .board, .lb, .lb > * { min-width: 0; }
+  .lb-pay, .payout { min-width: 0; max-width: 100%; }
+}
+@media (max-width: 380px) {
+  .tab { font-size: 0.68rem; }
+  .lb { column-gap: 0.5rem; }
+  .board { padding-left: 0.75rem; padding-right: 0.75rem; }
+}
