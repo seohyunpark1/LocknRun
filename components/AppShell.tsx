@@ -106,7 +106,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Challenges", icon: <IconList />, on: onHome && hash !== "#new" && hash !== "#how" },
     { href: "/#new", label: "New challenge", short: "New", icon: <IconPlus />, on: onHome && hash === "#new" },
     { href: "/earnings", label: "My earnings", short: "Earnings", icon: <IconWallet />, on: path === "/earnings" },
-    { href: "/shop", label: "Shop", icon: <IconBag />, on: path === "/shop" },
     { href: "/#how", label: "How it works", short: "How", icon: <IconInfo />, on: onHome && hash === "#how" },
   ];
 

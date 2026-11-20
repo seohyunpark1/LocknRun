@@ -39,6 +39,8 @@ function limited(ip: string) {
 // POST /api/shop  { action: "prepare", address, itemId }  ->  { orderId, tx }
 //                 { action: "submit", address, orderId, tx } ->  { order }  (with coupon code)
 export async function POST(req: Request) {
+  // Shop payments are disabled until they use the external-wallet signing flow.
+  if (process.env.SHOP_ENABLED !== "true") return NextResponse.json({ error: "The shop is temporarily unavailable." }, { status: 503 });
   const body = await req.json().catch(() => ({}));
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "local";
   if (limited(ip)) return NextResponse.json({ error: "Slow down a little!" }, { status: 429 });

@@ -233,7 +233,6 @@ export default function EarningsPage() {
               <span className="muted small">Available</span>
               <b>{balance === null ? "—" : money(balance)}</b>
             </div>
-            <Link href="/shop" className="btn block shop-link">🛍️ Spend it in the Shop</Link>
             <div className="muted small" style={{ textAlign: "center", margin: "0.6rem 0 0" }}>or send it to your wallet</div>
             <label htmlFor="amt">Amount (USDC)</label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
