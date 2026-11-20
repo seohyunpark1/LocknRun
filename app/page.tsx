@@ -197,7 +197,7 @@ export default function Home() {
       </div>
       <section className="steps" id="how">
         <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs and choose how much USDC you want to stake. Your stake is locked until the challenge ends.</div>
-        <div className="step"><b>2 · Run and check in</b>Record each run with your phone, then add one photo check-in per day. You&apos;ll see it approved, sent for review, or rejected, with the reason.</div>
+        <div className="step"><b>2 · Run and check in</b>Start your run in the app on your phone and finish it, then take one live photo check-in per day. We check your run time against the app&apos;s session clock, plus the distance and pace. You can also import a Strava run. It&apos;s approved, sent for review, or rejected, with the reason. Check-ins from a computer aren&apos;t accepted.</div>
         <div className="step"><b>3 · Get rewarded</b>
           <b style={{ display: "inline" }}>Everyone finishes:</b> everyone gets their stake back, plus any sponsor bonus.<br />
           <b style={{ display: "inline" }}>Some finish:</b> finishers split the pool, including the stakes of those who didn&apos;t.<br />

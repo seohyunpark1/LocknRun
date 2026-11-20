@@ -142,7 +142,7 @@ export default function RankingPage() {
               </div>
             )}
             <p className="muted small" style={{ marginBottom: 0 }}>
-              Only runs that count toward a challenge (distance met, real running pace, with a photo check-in) are ranked.
+              Only runs that count toward a challenge (distance met, real running pace, with a photo check-in or a Strava run) are ranked.
             </p>
           </aside>
         </div>

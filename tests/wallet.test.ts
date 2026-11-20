@@ -403,8 +403,10 @@ test('check-ins need a server session, one photo, and one counted run per room d
   const c = { id: 'checkin', title: 'T', goalKm: 3, runsRequired: 2, deposit: 10, createdAt: now, endsAt: now + 3 * 86_400_000, creatorName: 'R', timeZone: 'America/Vancouver', status: 'active' as const, participants: [{ name: 'R', address: runner.publicKey.toBase58(), joinedAt: now, joinSig: 'j', runs: [] }] };
   await insertChallenge(c);
   const photo = 'data:image/jpeg;base64,' + Buffer.from('x'.repeat(64)).toString('base64');
-  const call = (body: object) => POST(new Request('https://lockrun.test/api/challenges/checkin', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: `lockrun_session=${token}` }, body: JSON.stringify(body) }), { params: { id: 'checkin' } });
+  const call = (body: object) => POST(new Request('https://lockrun.test/api/challenges/checkin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148', cookie: `lockrun_session=${token}` }, body: JSON.stringify(body) }), { params: { id: 'checkin' } });
   const start = async () => (await (await call({ action: 'start' })).json()).sessionId as string;
+  const desktop = await POST(new Request('https://lockrun.test/api/challenges/checkin', { method: 'POST', headers: { 'Content-Type': 'application/json', 'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/120', cookie: `lockrun_session=${token}` }, body: JSON.stringify({ action: 'start' }) }), { params: { id: 'checkin' } });
+  assert.equal(desktop.status, 403, 'computers cannot check in');
   assert.equal((await call({ action: 'run', km: 3, sec: 900, photo, sessionId: 'a'.repeat(20) })).status, 403, 'unknown session');
   const s1 = await start();
   assert.equal((await call({ action: 'run', km: 3, sec: 900, sessionId: s1 })).status, 400, 'photo required');
@@ -439,7 +441,7 @@ test('very fast runs wait for review, hold the day slot, hold settlement, and on
   const now = Date.now();
   await insertChallenge({ id: 'review', title: 'T', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: now - 7200_000, endsAt: now + 3600_000, creatorName: 'R', status: 'active' as const, participants: [{ name: 'R', address: runner.publicKey.toBase58(), joinedAt: now - 7200_000, joinSig: 'j', runs: [] }] });
   const photo = 'data:image/jpeg;base64,' + Buffer.from('y'.repeat(64)).toString('base64');
-  const call = (body: object, headers: Record<string, string> = {}) => POST(new Request('https://lockrun.test/api/challenges/review', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: `lockrun_session=${token}`, ...headers }, body: JSON.stringify(body) }), { params: { id: 'review' } });
+  const call = (body: object, headers: Record<string, string> = {}) => POST(new Request('https://lockrun.test/api/challenges/review', { method: 'POST', headers: { 'Content-Type': 'application/json', 'user-agent': 'Mozilla/5.0 (Linux; Android 14) Mobile', cookie: `lockrun_session=${token}`, ...headers }, body: JSON.stringify(body) }), { params: { id: 'review' } });
   const { sessionId } = await (await call({ action: 'start' })).json();
   await kvSet(`runsession:${sessionId}`, { challengeId: 'review', address: runner.publicKey.toBase58(), startedAt: Date.now() - 30 * 60_000 });
   const sent = await (await call({ action: 'run', km: 3, sec: 480, photo, sessionId })).json(); // 2:40/km

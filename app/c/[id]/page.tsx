@@ -9,6 +9,8 @@ import RunTracker from "@/components/RunTracker";
 import SponsorBox from "@/components/SponsorBox";
 import AdSlot from "@/components/AdSlot";
 import { SponsorMark } from "@/components/Logos";
+import StravaImport from "@/components/StravaImport";
+import { isMobileDevice } from "@/lib/device";
 import { Challenge, Run, bonusOf, countedRuns, explorerTx, isFinisher, money, pace, potOf, runStatus } from "@/lib/config";
 import { PLATFORM_FEE_RATE, computePayouts } from "@/lib/settle";
 import { timeLeft, useMe, useNow } from "@/lib/client";
@@ -22,6 +24,8 @@ export default function ChallengePage() {
   const [busy, setBusy] = useState("");
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
+  const [phone, setPhone] = useState(false);
+  useEffect(() => setPhone(isMobileDevice()), []);
   const [viewRun, setViewRun] = useState<{ run: Run; name: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -187,7 +191,16 @@ export default function ChallengePage() {
                   {Math.min(countedRuns(mine), c.runsRequired)}/{c.runsRequired} days · {Math.round((Math.min(countedRuns(mine), c.runsRequired) / c.runsRequired) * 100)}%
                 </span>
               </div>
-              <RunTracker goalKm={c.goalKm} onStart={startRun} onFinish={saveRun} />
+              {phone ? (
+                <>
+                  <RunTracker goalKm={c.goalKm} onStart={startRun} onFinish={saveRun} />
+                  <StravaImport challengeId={c.id} address={me!.address} onImported={(d) => setC(d.challenge as Challenge)} />
+                </>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>
+                  Check-ins are only accepted from your phone, so we can use its location and live camera. Open this page on your phone to check in.
+                </p>
+              )}
             </div>
           )}
 
@@ -313,7 +326,7 @@ export default function ChallengePage() {
             </div>
           )}
           <p className="muted small" style={{ marginTop: 14 }}>
-            A check-in is approved when your run reaches {c.goalKm} km at a running pace and comes with your photo. Very fast runs go to
+            A check-in is approved when your run reaches {c.goalKm} km at a running pace and comes with your live photo (or is imported from Strava). Very fast runs go to
             review; they hold that day&apos;s slot until decided. Every check-in is stamped on Solana.
           </p>
         </aside>
@@ -343,10 +356,13 @@ export default function ChallengePage() {
             </h2>
             <div className="meta">
               <span>{pace(viewRun.run.sec / viewRun.run.km)}/km</span>
-              <span>Phone-recorded + photo</span>
+              <span>{viewRun.run.source === "strava" ? `Strava: ${viewRun.run.stravaName || "run"}` : "Phone-recorded + photo"}</span>
               <span className={viewRun.run.counts ? "" : "nope-text"}>{{ approved: "Approved", pending: "Under review", rejected: "Rejected" }[runStatus(viewRun.run)]}</span>
             </div>
             <div className="meta" style={{ marginTop: "0.5rem" }}>
+              {viewRun.run.stravaId && (
+                <a href={`https://www.strava.com/activities/${viewRun.run.stravaId}`} target="_blank" rel="noreferrer">View on Strava ↗</a>
+              )}
               {viewRun.run.reason && <span>{viewRun.run.reason}</span>}
               {viewRun.run.proofSig && (
                 <a href={explorerTx(viewRun.run.proofSig)} target="_blank" rel="noreferrer">Proof on Solana ↗</a>

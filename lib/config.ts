@@ -55,8 +55,10 @@ export type Run = {
   counts: boolean; // true only when approved
   status?: CheckInStatus; // missing on older runs: counts decides
   reason?: string; // why a check-in is pending or rejected
-  source?: "gps"; // phone-recorded movement
+  source?: "gps" | "strava"; // phone-recorded movement, or a run imported from Strava
   photo?: boolean; // the photo check-in is stored for this run (GET /api/photos/<run id>)
+  stravaId?: number; // Strava activity id, for imported runs
+  stravaName?: string;
   proofSig?: string; // Solana memo transaction that stamps the proof on-chain
 };
 
@@ -116,6 +118,7 @@ export const PARTNERS: Partner[] = [
   { name: "Solana", domain: "solana.com", logo: "/partners/solana.png", url: "https://solana.com", role: "Escrow, payouts and run proofs" },
   { name: "USDC", domain: "circle.com", logo: "/partners/usdc.svg", url: "https://www.circle.com", role: "Circle's digital dollar, used for every deposit and payout" },
   { name: "QuickNode", domain: "quicknode.com", logo: "/partners/quicknode.png", url: "https://www.quicknode.com", role: "Fast connection to Solana" },
+  { name: "Strava", domain: "strava.com", logo: "/partners/strava.png", url: "https://www.strava.com", role: "Import runs as proof" },
 ];
 
 /** Where to look for a partner's logo, in order. */

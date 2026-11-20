@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { pace } from "@/lib/config";
+import CameraCapture from "./CameraCapture";
 
 type Result = { status: "approved" | "pending" | "rejected"; reason?: string };
 type Props = {
@@ -23,6 +24,7 @@ function haversine(a: GeolocationCoordinates, b: GeolocationCoordinates) {
 export default function RunTracker({ goalKm, onStart, onFinish }: Props) {
   const [phase, setPhase] = useState<"idle" | "running" | "proof" | "saving" | "done">("idle");
   const [photo, setPhoto] = useState<string>("");
+  const [camera, setCamera] = useState(false);
   const sessionId = useRef("");
   const final = useRef({ km: 0, sec: 0 });
   const [meters, setMeters] = useState(0);
@@ -132,16 +134,6 @@ export default function RunTracker({ goalKm, onStart, onFinish }: Props) {
     setPhase("proof");
   }
 
-  async function pickPhoto(file: File | undefined) {
-    if (!file) return;
-    setError("");
-    try {
-      setPhoto(await compressPhoto(file));
-    } catch {
-      setError("Couldn't read that photo. Try another one.");
-    }
-  }
-
   async function save() {
     if (!photo) return;
     setPhase("saving");
@@ -199,18 +191,28 @@ export default function RunTracker({ goalKm, onStart, onFinish }: Props) {
         <div className="proof">
           <b>Add your photo check-in</b>
           <p className="muted small" style={{ margin: "0.2rem 0 0.75rem" }}>
-            One photo per day, taken after your run. Everyone in the challenge can see it, and its fingerprint is stamped on Solana.
+            One live photo per day, taken with your camera after your run. Everyone in the challenge can see it, and its fingerprint is stamped on Solana.
           </p>
-          <label className={`photo-pick ${photo ? "has" : ""}`}>
-            {photo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={photo} alt="Your run photo" />
-            ) : (
-              <span>Take your photo</span>
-            )}
-            <input type="file" accept="image/*" onChange={(e) => pickPhoto(e.target.files?.[0])} />
-          </label>
-          <button className="btn primary block big" style={{ marginTop: "0.75rem" }} disabled={!photo} onClick={save}>
+          {camera ? (
+            <CameraCapture onCapture={(jpeg) => { setPhoto(jpeg); setCamera(false); }} onCancel={() => setCamera(false)} />
+          ) : (
+            <>
+              <div className={`photo-pick ${photo ? "has" : ""}`} onClick={() => setCamera(true)} role="button">
+                {photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photo} alt="Your check-in photo" />
+                ) : (
+                  <span>Open camera</span>
+                )}
+              </div>
+              {photo && (
+                <button className="btn ghost block" style={{ marginTop: "0.5rem" }} onClick={() => setCamera(true)}>
+                  Retake photo
+                </button>
+              )}
+            </>
+          )}
+          <button className="btn primary block big" style={{ marginTop: "0.75rem" }} disabled={!photo || camera} onClick={save}>
             Submit check-in
           </button>
           <button className="btn ghost block" style={{ marginTop: "0.5rem" }} onClick={() => { setPhase("idle"); setPhoto(""); }}>
@@ -231,32 +233,4 @@ export default function RunTracker({ goalKm, onStart, onFinish }: Props) {
       {error && <p className="err">{error}</p>}
     </div>
   );
-}
-
-/** Shrinks a photo in the browser (max 1024 px, JPEG) so uploads are fast on mobile data. */
-async function compressPhoto(file: File): Promise<string> {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = reject;
-      i.src = url;
-    });
-    const max = 1024;
-    const scale = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(img.naturalWidth * scale);
-    canvas.height = Math.round(img.naturalHeight * scale);
-    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-    let q = 0.75;
-    let out = canvas.toDataURL("image/jpeg", q);
-    while (out.length > 550_000 && q > 0.35) {
-      q -= 0.1;
-      out = canvas.toDataURL("image/jpeg", q);
-    }
-    return out;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
 }

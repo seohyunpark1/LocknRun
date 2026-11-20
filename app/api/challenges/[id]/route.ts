@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import crypto from "node:crypto";
 import { CheckInStatus, MAX_LOGO_BYTES, MAX_PACE_SEC_PER_KM, MAX_PHOTO_BYTES, MAX_SESSION_SEC, MAX_SPONSORS, MIN_PACE_SEC_PER_KM, REVIEW_PACE_SEC_PER_KM, REVIEW_WINDOW_MS, Run, SPONSOR_BONUSES, clean, roomDay, runStatus } from "@/lib/config";
+import { getRun, stravaEnabled } from "@/lib/strava";
+import { isMobileRequest } from "@/lib/device";
 import { payFromEscrow, sponsorAddress, stampProof } from "@/lib/solana-server";
 import { computePayouts } from "@/lib/settle";
 import { acquireLock, getChallenge, kvGet, kvSet, mutate, newId, releaseLock, savePhoto } from "@/lib/store";
@@ -11,6 +13,18 @@ import { acquireLock, getChallenge, kvGet, kvSet, mutate, newId, releaseLock, sa
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // payouts send several Solana transactions
+
+const DESKTOP_MSG = "Check-ins are only accepted from your phone. Open Lock&Run on your phone to check in.";
+
+/** Distance and pace rules shared by phone check-ins and Strava imports. */
+function judgeRun(goalKm: number, km: number, sec: number): { status: CheckInStatus; reason: string } {
+  const paceSec = sec / km;
+  if (km < goalKm) return { status: "rejected", reason: `Needs at least ${goalKm} km to count.` };
+  if (paceSec < MIN_PACE_SEC_PER_KM) return { status: "rejected", reason: "Too fast to be running (bike or car?)." };
+  if (paceSec > MAX_PACE_SEC_PER_KM) return { status: "rejected", reason: "Too slow to count as a run." };
+  if (paceSec < REVIEW_PACE_SEC_PER_KM) return { status: "pending", reason: "Very fast pace. A reviewer will check this run." };
+  return { status: "approved", reason: "" };
+}
 
 /** Run `fn` while holding a per-challenge lock, so concurrent writes don't overwrite each other. */
 async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -90,6 +104,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // Step 1 of a check-in: the server issues a run session, so the reported time can be checked against its clock.
     if (body.action === "start") {
+      if (!isMobileRequest(req)) return fail(DESKTOP_MSG, 403);
       const c = await getChallenge(id);
       if (!c) return fail("Challenge not found", 404);
       if (c.status !== "active" || Date.now() >= c.endsAt) return fail("Time's up. This challenge already ended.", 409);
@@ -101,6 +116,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     // Step 2: submit the finished session with its photo check-in.
     if (body.action === "run") {
+      if (!isMobileRequest(req)) return fail(DESKTOP_MSG, 403);
       const km = Math.round(Number(body.km) * 100) / 100;
       const sec = Math.round(Number(body.sec));
       const photo = typeof body.photo === "string" ? body.photo : null;
@@ -126,15 +142,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         if (p.runs.some((r) => r.roomDay === day && ["approved", "pending"].includes(runStatus(r))))
           return { error: fail(`You already have a check-in for ${day}. Only one counts per room day.`, 409) };
 
-        const paceSec = sec / km;
         const elapsed = (now - session.startedAt) / 1000;
-        let status: CheckInStatus = "approved";
-        let reason = "";
-        if (sec > elapsed + 15) { status = "rejected"; reason = "The reported time is longer than the run session lasted."; }
-        else if (km < c.goalKm) { status = "rejected"; reason = `Needs at least ${c.goalKm} km to count.`; }
-        else if (paceSec < MIN_PACE_SEC_PER_KM) { status = "rejected"; reason = "Too fast to be running (bike or car?)."; }
-        else if (paceSec > MAX_PACE_SEC_PER_KM) { status = "rejected"; reason = "Too slow to count as a run."; }
-        else if (paceSec < REVIEW_PACE_SEC_PER_KM) { status = "pending"; reason = "Very fast pace. A reviewer will check this run."; }
+        const judged = sec > elapsed + 15 ? { status: "rejected" as CheckInStatus, reason: "The reported time is longer than the run session lasted." } : judgeRun(c.goalKm, km, sec);
+        const { status, reason } = judged;
         const run: Run = {
           id: newId(), km, sec, at: now, startedAt: session.startedAt, roomDay: day,
           counts: status === "approved", status, reason: reason || undefined, source: "gps", photo: true,
@@ -153,6 +163,49 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       try {
         const fingerprint = "photo:" + crypto.createHash("sha256").update(photo).digest("hex").slice(0, 32);
         const proofSig = await stampProof(`LockRun|run|${id}|${run.km}km|${run.sec}s|${fingerprint}`);
+        await withLock(`c:${id}`, () => mutate(id, (x) => {
+          const r = x.participants.flatMap((y) => y.runs).find((y) => y.id === run.id);
+          if (r) r.proofSig = proofSig;
+        }));
+        run.proofSig = proofSig;
+      } catch (e) {
+        console.error("proof stamp failed:", e instanceof Error ? e.message : e);
+      }
+      return NextResponse.json({ challenge: await getChallenge(id), run, reason });
+    }
+
+    // Import a run recorded on Strava. Strava (not the browser) reports the distance and time; same daily and pace rules apply.
+    if (body.action === "strava") {
+      if (!isMobileRequest(req)) return fail(DESKTOP_MSG, 403);
+      if (!stravaEnabled()) return fail("Strava isn't set up on this server.", 501);
+      const strava = await getRun(address, Number(body.activityId));
+      if (!strava) return fail("That Strava activity isn't a run.");
+      const { km, sec } = strava;
+      if (!(km > 0 && km <= 60 && sec > 0 && sec <= MAX_SESSION_SEC)) return fail("That run doesn't look right.");
+      const result = await withLock(`c:${id}`, async () => {
+        const c = await getChallenge(id);
+        if (!c) return { error: fail("Challenge not found", 404) };
+        const now = Date.now();
+        if (c.status !== "active" || now >= c.endsAt) return { error: fail("Time's up. This challenge already ended.", 409) };
+        const p = c.participants.find((x) => x.address === address);
+        if (!p) return { error: fail("Join the challenge first.", 403) };
+        if (p.runs.length >= 50) return { error: fail("That's a lot of check-ins! Limit reached.") };
+        if (c.participants.some((x) => x.runs.some((r) => r.stravaId === strava.id))) return { error: fail("That Strava run was already used.", 409) };
+        if (strava.startedAt < p.joinedAt || strava.startedAt > c.endsAt) return { error: fail("That run happened outside this challenge.", 409) };
+        const day = roomDay(strava.startedAt, c.timeZone);
+        if (p.runs.some((r) => r.roomDay === day && ["approved", "pending"].includes(runStatus(r))))
+          return { error: fail(`You already have a check-in for ${day}. Only one counts per room day.`, 409) };
+        const { status, reason } = judgeRun(c.goalKm, km, sec);
+        const run: Run = { id: newId(), km, sec, at: now, startedAt: strava.startedAt, roomDay: day, counts: status === "approved", status, reason: reason || undefined, source: "strava", photo: false, stravaId: strava.id, stravaName: strava.name };
+        await mutate(id, (x) => {
+          x.participants.find((y) => y.address === p.address)!.runs.push(run);
+        });
+        return { run, reason };
+      });
+      if ("error" in result) return result.error!;
+      const { run, reason } = result;
+      try {
+        const proofSig = await stampProof(`LockRun|run|${id}|${run.km}km|${run.sec}s|strava:${run.stravaId}`);
         await withLock(`c:${id}`, () => mutate(id, (x) => {
           const r = x.participants.flatMap((y) => y.runs).find((y) => y.id === run.id);
           if (r) r.proofSig = proofSig;

@@ -117,10 +117,10 @@ All math is integer micro-USDC and shared by the UI and payouts. The fee stays i
 
 ### Daily check-ins and review (`app/api/challenges/[id]/route.ts`)
 1. `start` issues a server run session (the server's clock).
-2. `run` submits distance, time and **one photo**. Rejected if the session is unknown, reused, or the reported time is longer than the session lasted; if under the goal distance; or if pace is outside 2:30–20:00/km.
+2. `run` submits distance, time and **one live camera photo** (the browser camera stream only; no file picker). Check-ins are **phone-only**: requests from desktop user agents are refused (a guard, not tamper-proof). `strava` imports a Strava run instead (no photo; Strava reports distance/time) under the same daily and pace rules. Rejected if the session is unknown, reused, or the reported time is longer than the session lasted; if under the goal distance; or if pace is outside 2:30–20:00/km.
 3. **One counted check-in per room day** in the challenge's fixed time zone (set from the creator's browser, shown on the challenge page). A goal can't need more days than the challenge spans.
 4. Paces faster than 3:30/km become **pending review**: they hold that day's slot and don't count. A reviewer decides with `action: "review"` and the `x-verifier-key` header (env `VERIFIER_KEY`; disabled if unset). Payout waits for pending reviews, up to 24 hours after the end; unresolved ones then don't count.
-5. Distance is estimated from the phone's location in the browser. The document's Core Motion/HealthKit sources need a native iOS app. Strava and the voice coach are not part of this flow.
+5. Verification today is the server session clock + live photo + pace/distance checks; distance comes from the phone's browser location. The document's Core Motion/HealthKit motion verification needs a native iOS app and is **not** implemented. The voice coach is removed.
 
 ### Badges
 The earnings page awards badges: First 100%, Hot streak (3 perfect in a row), Perfect five, Sponsor-backed,
