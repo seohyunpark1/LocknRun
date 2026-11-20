@@ -1,7 +1,7 @@
 /** Turn known simulation failures into an actionable message without guessing that every failure is a balance problem. */
 export function depositSimulationMessage(error: unknown, logs: string[] = []): string {
   const text = logs.join('\n').toLowerCase();
-  if (error === 'InsufficientFundsForFee' || error === 'AccountNotFound' || text.includes('insufficient lamports')) {
+  if (error === 'InsufficientFundsForFee' || error === 'InvalidAccountForFee' || error === 'AccountNotFound' || text.includes('insufficient lamports')) {
     return 'The connected wallet needs Devnet SOL for the network fee and token account creation. Check the address shown in LocknRun.';
   }
   if (text.includes('insufficient funds')) {

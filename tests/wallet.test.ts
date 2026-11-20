@@ -220,6 +220,7 @@ test('Vercel without shared storage reports setup failure instead of a disconnec
 test('simulation diagnostics distinguish token funds, SOL fees, and unrelated program failures', async () => {
   const { depositSimulationMessage } = await import('../lib/simulation-error');
   assert.match(depositSimulationMessage('InsufficientFundsForFee'), /Devnet SOL/);
+  assert.match(depositSimulationMessage('InvalidAccountForFee'), /Devnet SOL/);
   assert.match(depositSimulationMessage({ InstructionError: [1, { Custom: 1 }] }, ['Program log: Error: insufficient funds']), /Devnet USDC/);
   assert.match(depositSimulationMessage({ InstructionError: [1, 'InvalidAccountData'] }, ['Program log: Error: InvalidAccountData']), /token account/);
   assert.match(depositSimulationMessage('BlockhashNotFound'), /blockhash/);
