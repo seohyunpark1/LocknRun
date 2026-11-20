@@ -8,6 +8,7 @@ import AppShell from "@/components/AppShell";
 import Money from "@/components/Money";
 import { newDayLabel, photoFallback } from "@/lib/ui";
 import TodayBar from "@/components/TodayBar";
+import RuleBadges from "@/components/RuleBadges";
 import CheerFeed from "@/components/CheerFeed";
 import RunTracker from "@/components/RunTracker";
 import SponsorBox from "@/components/SponsorBox";
@@ -38,8 +39,8 @@ export default function ChallengePage() {
     const r = await fetch(`/api/challenges/${id}${invite ? `?invite=${encodeURIComponent(invite)}` : ""}`, { cache: "no-store" });
     if (r.status === 404) return setNotFound(true);
     const d = await r.json();
-    if (d.challenge) setC(d.challenge);
-  }, [id, invite]);
+    if (d.challenge) { setC(d.challenge); setNotFound(false); } // recovers after connecting the wallet that joined
+  }, [id, invite, me?.address]);
 
   useEffect(() => {
     let stop = false;
@@ -106,8 +107,11 @@ export default function ChallengePage() {
       <AppShell>
         <main className="wrap">
           <div className="empty" style={{ marginTop: "2rem" }}>
-            Challenge not found. <Link href="/">Back to challenges</Link>
+            {me ? "Challenge not found." : "Challenge not found. If it's private, open it with its invite link or connect the wallet that joined."}{" "}
+            {!me && <button className="link-btn" style={{ marginLeft: 0 }} onClick={openConnect}>Connect wallet</button>}{!me && " · "}
+            <Link href="/">Back to challenges</Link>
           </div>
+          {!me && <NameGate onJoin={async (n, wallet) => { await join(n, wallet); }} />}
         </main>
       </AppShell>
     );
@@ -137,7 +141,7 @@ export default function ChallengePage() {
           <span className={`status ${live ? "st-open" : c.status === "settled" ? "st-done" : "st-claimed"}`}>
             {live ? timeLeft(c.endsAt, now) : c.status === "settled" ? "Paid out" : "Ended"}
           </span>
-          {c.visibility === "private" && <span className="status st-claimed" style={{ marginLeft: 8 }}>Private · invite only</span>}
+          <RuleBadges c={c} detail />
           <h1 style={{ marginTop: 10 }}>{c.title}</h1>
           <p className="lede">
             Run <b>{c.goalKm} km</b>, <b>{c.runsRequired} time{c.runsRequired > 1 ? "s" : ""}</b> before the clock runs out.

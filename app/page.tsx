@@ -9,6 +9,7 @@ import AdSlot from "@/components/AdSlot";
 import TypeValue from "@/components/TypeValue";
 import AppShell from "@/components/AppShell";
 import Money from "@/components/Money";
+import RuleBadges from "@/components/RuleBadges";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
 import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, partnerLogoSources, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
 import { openConnect, timeLeft, useMe, useNow } from "@/lib/client";
@@ -283,6 +284,7 @@ function ChallengeCard({ c, now, meAddr }: { c: Challenge; now: number; meAddr?:
             {live ? timeLeft(c.endsAt, now) : c.status === "settled" ? "Paid out" : "Ended · ready to pay out"}
           </span>
           {joined && <span className="status st-claimed">You&apos;re in</span>}
+          <RuleBadges c={c} />
         </div>
       </div>
     </Link>

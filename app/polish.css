@@ -170,3 +170,13 @@ details.more p { margin: 0.1rem 0 0; line-height: 1.55; }
 
 /* No single orphaned word at the end of paragraphs. */
 .lede, .muted, p { text-wrap: pretty; }
+
+/* ---------- Rule badges (components/RuleBadges): reward mode + private ---------- */
+.rule-badges { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; vertical-align: middle; }
+.hero2 .rule-badges { margin-left: 0.5rem; }
+.rule-badge { display: inline-flex; align-items: center; font-size: max(11px, 0.75rem); font-weight: 600; line-height: 1.2; padding: 0.2rem 0.55rem; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; }
+.rule-badge.pool { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.rule-badge.fraction { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.rule-badge.private { background: #f5f3ff; border-color: #ddd6fe; color: #6d28d9; }
+.rule-badge-hint { font-weight: 500; opacity: 0.85; margin-left: 0.3em; }
+@media (max-width: 480px) { .rule-badge-hint { display: none; } }
