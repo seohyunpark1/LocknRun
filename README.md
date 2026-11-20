@@ -4,7 +4,7 @@
 
 Friends stake USDC on a shared running goal. Each challenge is a **room** on Solana: stakes sit in a vault that no person or server wallet owns, and when the challenge ends an **Anchor program** computes and pays the rewards. Finishers share the pool, or everyone is refunded if nobody finishes or no result arrives.
 
-This README covers the Solana program and how the project uses Solana. Notes on the web app (wallet flow, check-ins, shop, interface) are in [docs/APP_NOTES.md](docs/APP_NOTES.md); the product plan is in [LocknRun_Basic_Structure.md](LocknRun_Basic_Structure.md).
+This README covers the Solana program and how the project uses Solana.
 
 ## Program IDs (Solana Devnet)
 
@@ -112,4 +112,4 @@ Devnet only, and the program is **not audited**.
 | `lib/escrow-ix.ts` | Instruction builders, PDAs, account decoders, transaction inspector |
 | `lib/escrow-settle.ts` | Server crank: record results, finalize, claims, refunds |
 | `lib/deposits.ts`, `lib/settle.ts` | Deposit transactions and payout math in the app |
-| `app/`, `components/` | Next.js web app ([notes](docs/APP_NOTES.md)) |
+| `app/`, `components/` | Next.js web app |

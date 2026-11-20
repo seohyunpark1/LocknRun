@@ -366,7 +366,7 @@ function room(over: Record<string, unknown> = {}, finished: boolean[] = [], depo
   };
 }
 
-test('settlement follows the structure document: all finish, some finish, nobody finishes, sponsor bonus, 5% fee, rounding', async () => {
+test('settlement rules: all finish, some finish, nobody finishes, sponsor bonus, 5% fee, rounding', async () => {
   const { computePayouts } = await import('../lib/settle');
   const total = (r: { payouts: { amount: number }[] }) => Math.round(r.payouts.reduce((s, p) => s + p.amount, 0) * 1e6);
   // All five finish, no bonus: everyone gets 10 back, no fee.

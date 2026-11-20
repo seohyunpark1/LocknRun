@@ -1,4 +1,4 @@
-// Settlement math (pure, no I/O). Rules follow LocknRun_Basic_Structure.md, section 6.
+// Settlement math (pure, no I/O). Rules: see "Settlement rules" in the README; mirrored by programs/lockrun_escrow/src/math.rs.
 // All arithmetic is in integer micro-USDC (6 decimals), so the UI and payouts always agree.
 import { Challenge, Participant, bonusOf, countedRuns, isFinisher, rewardModeOf } from "./config";
 
