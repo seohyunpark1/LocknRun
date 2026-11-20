@@ -74,7 +74,36 @@ Tests use ephemeral fixture keys and mocked RPC responses; they do not send fund
 - Associated Token Account program: `ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL`.
 - Memo program: `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`.
 - Escrow address: read from the actual configured server wallet and shown on the home page with an explorer link.
-- Custom Anchor Program ID: none deployed by this implementation.
+- Custom Anchor program: `lockrun_escrow`, ID `DNCsEVz5mRUwJTKpXE1z478PSxKSrRVVW2GMAr3ByDAj` (source in `programs/lockrun_escrow`, branch `anchor-escrow`). Deployed to Devnet: **not yet** (see below). Challenges use it only when the server runs with `ESCROW_MODE=program`; all others keep the server-held escrow.
+
+## How we use Solana
+
+- **Stakes live on Solana, not on our server.** With `ESCROW_MODE=program`, every challenge is a *room*: a PDA account plus a USDC vault token account owned by that PDA. Participants and sponsors deposit exactly the stake/bonus from their own wallet (one transaction they sign in Phantom: `create_room` + `join_room`, `join_room`, or `fund_sponsor`).
+- **The program enforces the rules.** After the room ends, the room's `verifier` (the Lock&Run server) records each participant's completed share (`record_result`, in join order) and calls `finalize`. The program computes every payout (both reward modes, the 5% fee on forfeited stakes in all-or-nothing rooms, integer rounding), so the server only decides who finished; it cannot choose amounts or take money. `claim`, `return_sponsor` and `claim_fee` are permissionless and can only pay the recorded wallet's own token account or the fee recipient fixed at room creation.
+- **Failure paths are on-chain.** If no result is finalized before `timeout_at` (72 h after the end), `claim` and `return_sponsor` refund everyone; finalizing is then impossible. If nobody finishes, every stake and sponsor bonus is refunded.
+- **Solana-native pieces:** SPL Token transfers (Circle USDC), Associated Token Accounts, PDAs/CPI with signer seeds, the Compute Budget program, the Memo program (run proofs), Anchor events for indexing.
+- **Wallet UX:** Wallet Standard connection and message-signing login; the deposit transaction is simulated server-side, then re-checked in the browser (every account derived from the program ID, every instruction byte compared) before Phantom is asked to sign. One signer, explicit compute and loaded-data limits.
+
+### Program
+
+| Instruction | Who | What |
+|---|---|---|
+| `create_room` | creator | Fixes stake, mode (`0` all-or-nothing, `1` by fraction), end time, timeout, verifier, fee recipient; creates the vault |
+| `join_room` | participant | Transfers exactly the stake into the vault, registers the wallet once |
+| `fund_sponsor` | sponsor | Adds a bonus before the end (one per wallet) |
+| `record_result` / `finalize` | verifier | After the end, before the timeout; results in join order; the program computes allocations |
+| `claim` / `return_sponsor` / `claim_fee` | anyone | Pay the participant / return a bonus / send the fee |
+
+Tests: `cargo test -p lockrun_escrow --lib` (math, including the structure document's examples), and `anchor test --skip-build` (local validator: all-or-nothing with fee, by fraction, nobody finishes, wrong destination, timeout refund, double join, late join, plus the app's own builders/inspector/settlement crank end to end against the real program).
+
+Build notes: `anchor build -- --tools-version v1.51` (the lockfile pins crates that predate Rust edition 2024); generate the IDL with `anchor idl build -o target/idl/lockrun_escrow.json`.
+
+### Not done yet
+- **Devnet deployment** (the ID above is reserved; deploying needs ~3 devnet SOL and sets an upgrade authority).
+- **QuickNode Streams** webhook (the program emits `RoomCreated`, `Joined`, `SponsorFunded`, `Finalized`, `Claimed`, `SponsorReturned`, `FeeClaimed` events for it).
+- A browser UI button for the timeout refund (the instruction exists; today a refund can be cranked by anyone with a script).
+- Joins don't yet read the room's stake from the chain in the browser; the program enforces the stake, but the displayed amount comes from the server.
+- The program is **unaudited**.
 
 Implementation references: [Wallet Standard Solana features](https://github.com/wallet-standard/wallet-standard/blob/master/extensions/solana.md), [Solana transaction confirmation](https://solana.com/docs/rpc/http/gettransaction).
 
