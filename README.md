@@ -161,6 +161,17 @@ with the Solana receipt.
 **Why it matters for the business:** sponsors don't just pay for logos. They sell products to runners right after
 they've won, and that money goes back to the brands that funded the bonus. Lock&Run can take a cut of each sale.
 
+## Streaks + weekly ranking
+
+`/ranking` keeps runners coming back every day:
+
+- **Streak:** days in a row with at least one counted run (still alive if you ran yesterday and haven't run yet
+  today), with this week's Mon–Sun check marks and your best-ever streak. Your streak also shows next to your name
+  (sidebar and phone top bar).
+- **Weekly ranking:** every runner ranked by counted km this week (then runs, then streak). Resets every Monday.
+- Only runs that count toward a challenge (distance met, human pace, photo or Strava proof) are used, so nobody
+  can pad the ranking. Computed from challenge data in `lib/streaks.ts`.
+
 ## Sponsor and partner logos
 
 - Sponsors can upload a PNG/JPG logo when they add a bonus. It is shrunk to 256 px in the browser and shown on the
@@ -247,6 +258,8 @@ app/api/wallet/route.ts         Balance + cash-out (prepare / submit)
 app/shop/page.tsx               Shop: rewards to buy with winnings, My rewards (codes)
 app/api/shop/route.ts           Shop catalog, orders, payment (prepare / submit)
 lib/shop.ts                     Shop items and prices
+app/ranking/page.tsx            Streaks + weekly ranking
+lib/streaks.ts                  Streak and ranking math
 app/api/sponsor-logo/...        Serves sponsor logos
 components/AppShell.tsx         Web sidebar / phone top bar + tab bar
 components/SponsorBox.tsx       Sponsor a challenge (bonus + logo)
