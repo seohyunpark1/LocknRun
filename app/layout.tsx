@@ -6,7 +6,7 @@ import type { Metadata, Viewport } from "next";
 export const metadata: Metadata = {
   title: "Lock&Run — bet on your own run",
   description:
-    "Lock a deposit on your running goal. Finish and get it back plus a share of the quitters. On Solana.",
+    "Stake USDC on your running goal. Finish and get your stake back plus a share of the pool. On Solana.",
   manifest: "/manifest.webmanifest",
   applicationName: "Lock&Run",
   appleWebApp: { capable: true, title: "Lock&Run", statusBarStyle: "default" },

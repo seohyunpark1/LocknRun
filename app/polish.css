@@ -74,3 +74,28 @@ html { scroll-behavior: smooth; }
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- Accessibility pass (from an Impeccable detector scan) ---------- */
+/* Same green-gradient look, but dark enough for white text (≥4.5:1, was ~2:1). */
+:root {
+  --green: #15803d;
+  --green-dark: #166534;
+  --green-grad: linear-gradient(135deg, #13883d 0%, #15803d 55%, #166534 100%);
+  --faint: #5f7a69; /* was #93ab9b (2.5:1) */
+}
+/* Streak orange text: #c2410c (5.2:1) instead of #ea580c (3.6:1). */
+.side-streak, .me-streak, .rank-streak, .streak-row b, .streak-num, .wd.today .wd-lbl { color: #c2410c; }
+/* Nothing functional below 11px. */
+.unit { font-size: max(0.6875rem, 0.42em); }
+.ad-label { font-size: 0.6875rem; }
+/* Earnings rows: tinted card instead of a coloured stripe down the left edge. */
+.earn-row.won { border-left-width: 1px; border-color: #bbf7d0; background: #f0fdf4; }
+.earn-row.lost { border-left-width: 1px; border-color: #fecaca; background: #fffafa; }
+/* Pop-ups ease out smoothly instead of bouncing. */
+.celebrate-card { animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
+/* The root font size is fluid, so small rem sizes can land under 11px on phones: floor them. */
+.tab, .shop-brand, .wd-lbl, .streak-stats span, .net-pill, .ad-label, .tier-pill, .shop-owned,
+.sponsor-badge, .pot-label, .tk-label, .lb-head, .voice-toggle, .partner-tile b, .proof-chip,
+.earn-bonus, .wallet-addr, .type-pencil, .foot { font-size: max(11px, 0.75rem); }
+.unit, .ccard .pot-amt .unit { font-size: max(11px, 0.42em); }
+:root { --faint: #587062; } /* 4.6:1 even on the darkest background tint */
