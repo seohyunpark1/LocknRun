@@ -10,3 +10,6 @@ data/
 wallets.json
 .vercel
 .env*
+target
+.anchor
+test-ledger

@@ -26,6 +26,7 @@
     "server-only": "^0.0.1"
   },
   "devDependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
     "@types/node": "^20.14.0",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.3",
