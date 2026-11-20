@@ -325,3 +325,5 @@ label { display: block; font-weight: 500; font-size: 0.85rem; color: var(--muted
   .lb-rcpt { grid-area: rcpt; font-size: 0.8rem; }
   .lb-pay { text-align: right; }
 }
+.unit-chips .chip { font-size: 0.85rem; }
+.dial.dial-bare { margin-top: 0.5rem; }

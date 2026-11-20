@@ -5,7 +5,7 @@ import Link from "next/link";
 import NameGate from "@/components/NameGate";
 import Dial from "@/components/Dial";
 import AppShell from "@/components/AppShell";
-import { Challenge, DEPOSITS, DURATIONS, GOAL_KMS, RUNS_REQUIRED, countedRuns, durationLabel, durationTick, money } from "@/lib/config";
+import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, countedRuns, durationLabel, money } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
@@ -20,7 +20,10 @@ export default function Home() {
   const [goalKm, setGoalKm] = useState(3);
   const [runsRequired, setRuns] = useState(2);
   const [deposit, setDeposit] = useState(10);
-  const [minutes, setMinutes] = useState(DURATIONS[0]);
+  const [durUnit, setDurUnit] = useState(0); // index into DURATION_UNITS (0 = Min)
+  const [durValue, setDurValue] = useState(15);
+  const unit = DURATION_UNITS[durUnit];
+  const minutes = durValue * unit.minutes;
   const [creating, setCreating] = useState(false);
   const [err, setErr] = useState("");
   useEffect(() => {
@@ -120,7 +123,35 @@ export default function Home() {
           <Dial label="Distance per run" options={GOAL_KMS} value={goalKm} onChange={setGoalKm} format={(v) => `${v} km`} />
           <Dial label="Runs to finish" options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} format={(v) => `${v} run${v > 1 ? "s" : ""}`} />
           <Dial label="Deposit" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`} />
-          <Dial label="Ends in" options={DURATIONS} value={minutes} onChange={setMinutes} format={durationLabel} tick={durationTick} />
+          <div className="dial">
+            <div className="dial-head">
+              <span>Ends in</span>
+              <b>{durationLabel(minutes)}</b>
+            </div>
+            <div className="chips unit-chips">
+              {DURATION_UNITS.map((u, i) => (
+                <button
+                  key={u.key}
+                  className={`chip ${i === durUnit ? "on" : ""}`}
+                  onClick={() => {
+                    setDurUnit(i);
+                    setDurValue(u.key === "min" ? 15 : u.values[0]);
+                  }}
+                >
+                  {u.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Dial
+            key={unit.key}
+            label={`Number of ${unit.label.toLowerCase()}${unit.key === "min" ? "utes" : "s"}`}
+            options={unit.values as unknown as number[]}
+            value={durValue}
+            onChange={setDurValue}
+            format={() => durationLabel(minutes)}
+            hideHead
+          />
           <button className="btn primary block" style={{ marginTop: "1.25rem" }} disabled={creating} onClick={create}>
             {creating ? "Locking your deposit…" : `Create & lock ${money(deposit)}`}
           </button>
