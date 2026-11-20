@@ -170,7 +170,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* ---------- Phone version: bottom tab bar ---------- */}
         <nav className="tabbar">
-          {[nav[0], nav[2], nav[1], nav[3], nav[4]].map((n) => ( /* "New" sits in the middle on phones */
+          {[nav[0], nav[2], nav[1], nav[3]].map((n) => ( /* "New" sits in the middle on phones */
             <Link key={n.href} href={n.href} className={`tab ${n.on ? "on" : ""} ${n.short === "New" ? "tab-new" : ""}`} onClick={() => setHash(n.href.split("#")[1] ? "#" + n.href.split("#")[1] : "")}>
               {n.icon}
               <span>{n.short || n.label}</span>
