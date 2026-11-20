@@ -7,6 +7,7 @@ import NameGate from "@/components/NameGate";
 import AppShell from "@/components/AppShell";
 import Money from "@/components/Money";
 import { photoFallback } from "@/lib/ui";
+import CheerFeed from "@/components/CheerFeed";
 import RunTracker from "@/components/RunTracker";
 import SponsorBox from "@/components/SponsorBox";
 import AdSlot from "@/components/AdSlot";
@@ -223,6 +224,7 @@ export default function ChallengePage() {
             </div>
           )}
 
+          <CheerFeed c={c} />
           <h2>Leaderboard</h2>
           <div className="list board">
             <div className="lb lb-head" aria-hidden>

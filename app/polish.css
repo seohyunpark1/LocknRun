@@ -99,3 +99,27 @@ html { scroll-behavior: smooth; }
 .earn-bonus, .wallet-addr, .type-pencil, .foot { font-size: max(11px, 0.75rem); }
 .unit, .ccard .pot-amt .unit { font-size: max(11px, 0.42em); }
 :root { --faint: #587062; } /* 4.6:1 even on the darkest background tint */
+
+/* ---------- Check-in feed with cheers (components/CheerFeed) ---------- */
+.feed { margin: 0 0 1.5rem; }
+.feed-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.75rem; }
+.feed-list { display: grid; gap: 0.5rem; }
+.feed-item { display: flex; align-items: center; gap: 0.8rem; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.6rem 0.7rem; box-shadow: var(--card-shadow); }
+.feed-item.own { background: #f0fdf4; border-color: #bbf7d0; }
+.feed-photo { width: 3.25rem; height: 3.25rem; border-radius: 0.6rem; object-fit: cover; flex-shrink: 0; background: var(--soft); }
+.feed-photo-none { display: grid; place-items: center; font-size: 1.4rem; }
+.feed-body { flex: 1; min-width: 0; }
+.feed-who { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.feed-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.feed-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.75rem; font-size: 0.9rem; color: var(--muted); margin-top: 0.15rem; font-variant-numeric: tabular-nums; }
+.feed-stats b { color: var(--ink); }
+.feed-tag { font-size: max(11px, 0.72rem); font-weight: 600; padding: 0.1rem 0.45rem; border-radius: 999px; background: #fff7ed; color: #c2410c; }
+.feed-tag.review { background: #fef9c3; color: #854d0e; }
+.cheer { display: inline-flex; align-items: center; gap: 0.3rem; min-height: var(--tap); min-width: var(--tap); justify-content: center; padding: 0 0.75rem; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); font: inherit; font-size: 1.05rem; cursor: pointer; flex-shrink: 0; }
+.cheer:hover:not(:disabled) { border-color: #a7dcb8; }
+.cheer.on { background: #fef3c7; border-color: #fcd34d; }
+.cheer.on span[aria-hidden] { display: inline-block; animation: cheer-pop .35s cubic-bezier(0.16, 1, 0.3, 1); }
+.cheer:disabled { cursor: default; opacity: 1; background: transparent; }
+.cheer-n { font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.feed-more { margin-top: 0.5rem; }
+@keyframes cheer-pop { from { transform: scale(1.5); } to { transform: none; } }
