@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import NameGate from "@/components/NameGate";
 import AppShell from "@/components/AppShell";
 import Money from "@/components/Money";
+import { photoFallback } from "@/lib/ui";
 import RunTracker from "@/components/RunTracker";
 import SponsorBox from "@/components/SponsorBox";
 import AdSlot from "@/components/AdSlot";
@@ -276,7 +277,7 @@ export default function ChallengePage() {
                         <button key={r.id} className={`proof-chip ${r.counts ? "" : "nope"}`} onClick={() => setViewRun({ run: r, name: p.name })} title={`Check-in: ${runStatus(r)}`}>
                           {r.photo && (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={`/api/photos/${r.id}`} alt="" loading="lazy" />
+                            <img key={me?.address || "guest"} src={`/api/photos/${r.id}`} alt="" loading="lazy" onError={photoFallback} />
                           )}
                           <span>{r.km} km{runStatus(r) === "pending" ? " · review" : ""}</span>
                         </button>
@@ -394,7 +395,7 @@ export default function ChallengePage() {
           <div className="card viewer" onClick={(e) => e.stopPropagation()}>
             {viewRun.run.photo && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={`/api/photos/${viewRun.run.id}`} alt={`${viewRun.name}'s run photo`} />
+              <img src={`/api/photos/${viewRun.run.id}`} alt={`${viewRun.name}'s run photo`} onError={photoFallback} />
             )}
             <h2 style={{ margin: "0.9rem 0 0.25rem" }}>
               {viewRun.name} · {viewRun.run.km} km in {Math.floor(viewRun.run.sec / 60)}:{String(viewRun.run.sec % 60).padStart(2, "0")}

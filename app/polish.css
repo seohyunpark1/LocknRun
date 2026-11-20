@@ -1,0 +1,76 @@
+/*
+ * UI polish layer. Kept in its own file (imported right after globals.css) so it can change
+ * without touching globals.css, which both branches edit. Only adds or overrides styles.
+ */
+
+/* ---------- Feel: press feedback, focus, selection ---------- */
+.btn:active:not(:disabled),
+.chip:active,
+.tab:active,
+.shop-item:active,
+.wallet-tile:active,
+.partner-tile:active,
+.ccard:active {
+  transform: scale(0.98);
+}
+.btn, .chip, .tab, .shop-item, .wallet-tile, .partner-tile, .ccard { transition-property: transform, background, border-color, box-shadow, opacity, color; transition-duration: .12s; }
+
+/* Visible focus ring for keyboard users only (mouse and touch stay clean). */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
+.input:focus-visible { outline: none; } /* inputs already show a green ring */
+
+::selection { background: #bbf7d0; color: var(--ink); }
+
+/* Anchors (#new, #how, #live) land below the sticky phone top bar, and scroll smoothly. */
+html { scroll-behavior: smooth; }
+#new, #how, #live { scroll-margin-top: 5rem; }
+
+/* ---------- Phones: dialogs become bottom sheets (thumb-friendly) ---------- */
+@media (max-width: 640px) {
+  .modal { place-items: end center; padding: 0; }
+  .modal > .card {
+    width: 100% !important;
+    max-width: none !important;
+    max-height: 92vh;
+    overflow: auto;
+    border-radius: 1.25rem 1.25rem 0 0;
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom));
+    animation: sheet-up .25s ease-out;
+  }
+  .modal > .card::before { /* grab handle */
+    content: "";
+    display: block;
+    width: 2.5rem;
+    height: 0.3rem;
+    border-radius: 999px;
+    background: var(--line);
+    margin: -0.35rem auto 0.75rem;
+  }
+}
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ---------- Phones: compact "Powered by" (2 × 2 instead of 4 tall cards) ---------- */
+@media (max-width: 640px) {
+  .partner-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .partner { padding: 0.65rem 0.75rem; }
+  .partner span { display: none; }
+}
+
+/* ---------- Web leaderboard: room for "100% · $102 USDC" on one line ---------- */
+@media (min-width: 1024px) {
+  .lb { grid-template-columns: 2rem minmax(7rem, 1.3fr) minmax(6rem, 1fr) 5.5rem minmax(9.5rem, auto); }
+  .lb-pay .small { white-space: nowrap; }
+}
+
+/* ---------- Respect "reduce motion" everywhere ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
