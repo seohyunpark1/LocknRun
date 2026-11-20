@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { pace } from "@/lib/config";
 import { speak } from "@/lib/client";
+import { PartnerLogo } from "@/components/Logos";
 
 type StravaRun = { id: number; name: string; km: number; sec: number; startedAt: number; used: boolean };
 type Props = { challengeId: string; address: string; onImported: (data: { challenge: unknown; run: { counts: boolean }; reason?: string }) => void };
@@ -97,7 +98,10 @@ export default function StravaImport({ challengeId, address, onImported }: Props
         </ul>
       )}
       {msg && <p className="err">{msg}</p>}
-      <p className="small" style={{ margin: "0.6rem 0 0", color: "var(--faint)" }}>Powered by Strava</p>
+      <div className="powered-strava">
+        <PartnerLogo src="/partners/strava.svg" name="Powered by Strava" className="powered-logo" />
+        <span className="small" style={{ color: "var(--faint)" }}>Powered by Strava</span>
+      </div>
     </div>
   );
 }

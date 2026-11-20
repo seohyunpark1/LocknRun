@@ -14,6 +14,7 @@ const Context = createContext<{
   disconnect: () => Promise<void>;
   deposit: (prepared: Prepared) => Promise<any>;
   retryDeposit: () => Promise<any>;
+  signWithdrawal: (transaction: string, amount: number, to: string) => Promise<string>;
   pending: boolean;
 }>(null!);
 export const useWallet = () => useContext(Context);
@@ -73,6 +74,12 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     sessionStorage.removeItem('lockrun.deposit'); setPending(false);
     return data;
   }
+  async function signWithdrawal(transaction: string, amount: number, to: string) {
+    if (!connected || !me) throw new Error('Connect your wallet first.');
+    if (!window.confirm(`Send ${amount} test USDC\nFrom: ${me.address}\nTo: ${to}\nNetwork: Solana Devnet\nNetwork fees: sponsored\nSimulation passed.\nApprove this transfer in your external wallet?`)) throw new Error('Transfer cancelled.');
+    const [signed] = await connected.wallet.features['solana:signTransaction'].signTransaction({ account: connected.account, chain: 'solana:devnet', transaction: Uint8Array.from(atob(transaction), c => c.charCodeAt(0)) });
+    return btoa(Array.from(signed.signedTransaction, b => String.fromCharCode(b)).join(''));
+  }
   async function deposit(prepared: Prepared) {
     if (!connected || !me) throw new Error('Connect your wallet first.');
     if (sessionStorage.getItem('lockrun.deposit')) throw new Error('Confirm your pending deposit before making another.');
@@ -85,5 +92,5 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     setPending(true);
     return retryDeposit();
   }
-  return <Context.Provider value={{ me, ready, wallets, join, disconnect, deposit, retryDeposit, pending }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ me, ready, wallets, join, disconnect, deposit, retryDeposit, pending, signWithdrawal }}>{children}</Context.Provider>;
 }

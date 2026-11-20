@@ -3,7 +3,20 @@ import WalletStatus from "./WalletStatus";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { explorerAddress, money } from "@/lib/config";
+import { Challenge, explorerAddress, isFinisher, money } from "@/lib/config";
+import { speak, useMe } from "@/lib/client";
+import Celebration, { Win } from "./Celebration";
+import { PartnerLogo } from "./Logos";
+
+const CELEBRATED = "lockrun.celebrated"; // challenge ids we've already congratulated this runner for
+
+function readCelebrated(): string[] {
+  try {
+    return JSON.parse(localStorage.getItem(CELEBRATED) || "[]");
+  } catch {
+    return [];
+  }
+}
 
 type Escrow = { address: string | null; balance: number | null };
 
@@ -13,33 +26,66 @@ type Escrow = { address: string | null; balance: number | null };
  *  - Phone (<1024px): app-style top bar + bottom tab bar.
  */
 export default function AppShell({ children }: { children: React.ReactNode }) {
+  const { me } = useMe();
   const path = usePathname();
   const [escrow, setEscrow] = useState<Escrow>({ address: null, balance: null });
   const [hash, setHash] = useState("");
+  const [win, setWin] = useState<Win | null>(null);
 
   useEffect(() => {
     let stop = false;
+    let timer: ReturnType<typeof setTimeout>;
     async function load() {
+      clearTimeout(timer);
       try {
         const d = await (await fetch("/api/challenges", { cache: "no-store" })).json();
         setEscrow(d.escrow);
+        checkForPayout(d.challenges || []);
       } catch {}
-      if (!stop) setTimeout(load, 10000);
+      if (!stop) timer = setTimeout(load, 8000);
+    }
+    // When this runner gets paid (on any page), show the Congratulations pop-up once per challenge.
+    function checkForPayout(list: Challenge[]) {
+      if (!me) return;
+      const address = me.address;
+      const seen = readCelebrated();
+      for (const c of list) {
+        if (c.status !== "settled" || seen.includes(`${address}:${c.id}`)) continue;
+        if (c.settledAt && Date.now() - c.settledAt > 7 * 86400_000) continue; // only recent payouts
+        const p = c.participants.find((x) => x.address === address);
+        if (!p) continue;
+        const finishers = c.participants.filter((x) => isFinisher(c, x)).length;
+        localStorage.setItem(CELEBRATED, JSON.stringify([...seen, `${address}:${c.id}`]));
+        if ((p.payout || 0) <= 0) return; // didn't finish: no pop-up
+        const refund = finishers === 0;
+        setWin({ c, payout: p.payout || 0, paySig: p.paySig, refund });
+        speak(
+          refund
+            ? `Your ${c.deposit} dollars are back in your account.`
+            : `Congratulations! You earned ${p.payout} dollars for finishing ${c.title}.`
+        );
+        return;
+      }
     }
     load();
+    const refresh = () => load();
+    window.addEventListener("lockrun:refresh", refresh);
     const onHash = () => setHash(window.location.hash);
     onHash();
     window.addEventListener("hashchange", onHash);
     return () => {
       stop = true;
+      clearTimeout(timer);
       window.removeEventListener("hashchange", onHash);
+      window.removeEventListener("lockrun:refresh", refresh);
     };
-  }, []);
+  }, [me?.address]);
 
   const onHome = path === "/";
   const nav = [
     { href: "/", label: "Challenges", icon: <IconList />, on: onHome && hash !== "#new" && hash !== "#how" },
     { href: "/#new", label: "New challenge", short: "New", icon: <IconPlus />, on: onHome && hash === "#new" },
+    { href: "/earnings", label: "My earnings", short: "Earnings", icon: <IconWallet />, on: path === "/earnings" },
     { href: "/#how", label: "How it works", short: "How", icon: <IconInfo />, on: onHome && hash === "#how" },
   ];
 
@@ -68,6 +114,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </a>
           )}
         </div>
+        <div className="side-built">
+          <PartnerLogo src="/partners/solana.svg" name="Solana" className="side-built-logo" />
+          <div className="small">Built on <b>Solana</b></div>
+          <div className="muted small">Every deposit, payout and run proof is recorded on-chain.</div>
+        </div>
         <div className="side-foot">
           <WalletStatus />
           <div className="small" style={{ color: "var(--faint)", marginTop: "0.75rem" }}>Solana devnet · test money only</div>
@@ -84,6 +135,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </header>
 
         {children}
+
+        {win && me && <Celebration win={win} name={me.name} onClose={() => setWin(null)} />}
 
         {/* ---------- Phone version: bottom tab bar ---------- */}
         <nav className="tabbar">
@@ -119,6 +172,14 @@ function IconInfo() {
     <svg {...svg} aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
+    </svg>
+  );
+}
+function IconWallet() {
+  return (
+    <svg {...svg} aria-hidden>
+      <rect x="3" y="6" width="18" height="13" rx="2.5" />
+      <path d="M3 10h18M16 14.5h2" />
     </svg>
   );
 }

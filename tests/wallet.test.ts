@@ -160,3 +160,39 @@ test('sponsor refunds and runner payouts cannot reuse each other’s transfer', 
   assert.equal(send.mock.callCount(), 2);
   t.mock.restoreAll();
 });
+
+test('withdrawals require login, bind sender and recipient, and retry without another payment', async t => {
+  const { connection } = await import('../lib/solana-server');
+  const { kvSet } = await import('../lib/store');
+  const { POST } = await import('../app/api/withdrawals/route');
+  const owner = Keypair.generate(), recipient = Keypair.generate();
+  const token = 'e'.repeat(64);
+  await kvSet(`session:${token}`, { address: owner.publicKey.toBase58(), expires: Date.now() + 5000 });
+  let confirmed = false;
+  t.mock.method(connection, 'getTokenAccountBalance', async () => ({ value: { uiAmount: 100 } }));
+  t.mock.method(connection, 'getLatestBlockhash', async () => ({ blockhash: recipient.publicKey.toBase58(), lastValidBlockHeight: 100 }));
+  t.mock.method(connection, 'simulateTransaction', async () => ({ value: { err: null } }));
+  t.mock.method(connection, 'getSignatureStatuses', async () => ({ value: [confirmed ? { confirmationStatus: 'confirmed', err: null } : null] }));
+  const send = t.mock.method(connection, 'sendRawTransaction', async () => 'mock');
+  t.mock.method(connection, 'confirmTransaction', async () => { confirmed = true; return { value: { err: null } }; });
+  const request = (body: object, authenticated = true) => new Request('https://lockrun.test/api/withdrawals', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(authenticated ? { cookie: `lockrun_session=${token}` } : {}) }, body: JSON.stringify(body) });
+  assert.equal((await POST(request({ action: 'prepare' }, false))).status, 401);
+  const prepared = await POST(request({ action: 'prepare', from: recipient.publicKey.toBase58(), to: recipient.publicKey.toBase58(), amount: 10 }));
+  assert.equal(prepared.status, 200);
+  const data = await prepared.json();
+  const tx = Transaction.from(Buffer.from(data.tx, 'base64'));
+  tx.partialSign(owner); // succeeds only if the authenticated wallet is the transfer authority
+  const original = tx.serialize().toString('base64');
+  const bad = Transaction.from(Buffer.from(original, 'base64'));
+  bad.instructions[1].data[1] ^= 1;
+  bad.partialSign(owner);
+  assert.equal((await POST(request({ action: 'submit', intentId: data.intentId, tx: bad.serialize({ verifySignatures: false }).toString('base64') }))).status, 400);
+  assert.equal(send.mock.callCount(), 0);
+  const first = await POST(request({ action: 'submit', intentId: data.intentId, tx: original }));
+  assert.equal(first.status, 200);
+  const second = await POST(request({ action: 'submit', intentId: data.intentId, tx: original }));
+  assert.equal(second.status, 200);
+  assert.equal((await first.json()).signature, (await second.json()).signature);
+  assert.equal(send.mock.callCount(), 1);
+  t.mock.restoreAll();
+});

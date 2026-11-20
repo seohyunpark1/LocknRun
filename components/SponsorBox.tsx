@@ -2,6 +2,7 @@
 import { useMe } from "@/lib/client";
 import { useState } from "react";
 import { Challenge, MAX_SPONSORS, SPONSOR_BONUSES, explorerTx, money } from "@/lib/config";
+import { SponsorMark } from "@/components/Logos";
 
 /** Lets a brand add bonus money to a challenge's pot. The bonus is locked in escrow on Solana. */
 export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live: boolean; onUpdated: (c: Challenge) => void }) {
@@ -10,6 +11,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [amount, setAmount] = useState(25);
+  const [logo, setLogo] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const sponsors = c.sponsors || [];
@@ -23,7 +25,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
       const r = await fetch(`/api/challenges/${c.id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "sponsor", name, amount, url: url.trim() || undefined }),
+        body: JSON.stringify({ action: "sponsor", name, amount, url: url.trim() || undefined, logo: logo || undefined }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Couldn't add the sponsor.");
@@ -32,6 +34,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
       setOpen(false);
       setName("");
       setUrl("");
+      setLogo("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -50,7 +53,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
         <ul className="sponsor-list">
           {sponsors.map((s, i) => (
             <li key={i}>
-              <span className="sponsor-logo" aria-hidden>{s.name.charAt(0).toUpperCase()}</span>
+              <SponsorMark c={c} index={i} s={s} />
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div className="sponsor-name">
                   {s.url ? (
@@ -84,6 +87,28 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
               </button>
             ))}
           </div>
+          <label>Logo (optional)</label>
+          <label className={`logo-pick ${logo ? "has" : ""}`}>
+            {logo ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={logo} alt="Logo preview" />
+            ) : (
+              <span>Upload a PNG or JPG</span>
+            )}
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={async (e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                try {
+                  setLogo(await shrinkLogo(f));
+                } catch {
+                  setErr("Couldn't read that image.");
+                }
+              }}
+            />
+          </label>
           <label htmlFor="sp-url">Website (optional)</label>
           <input id="sp-url" className="input" maxLength={200} placeholder="https://" value={url} onChange={(e) => setUrl(e.target.value)} />
           <button className="btn primary block" style={{ marginTop: "1rem" }} disabled={busy} onClick={submit}>
@@ -100,4 +125,31 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
       {err && <p className="err">{err}</p>}
     </div>
   );
+}
+
+/** Shrinks a logo to fit 256x256 (keeps transparency as PNG; falls back to JPEG if too big). */
+async function shrinkLogo(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image();
+      i.onload = () => resolve(i);
+      i.onerror = reject;
+      i.src = url;
+    });
+    const scale = Math.min(1, 256 / Math.max(img.naturalWidth, img.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const png = canvas.toDataURL("image/png");
+    if (png.length < 190_000) return png;
+    const ctx = canvas.getContext("2d")!;
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.85);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
