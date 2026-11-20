@@ -5,6 +5,7 @@ import { explorerTx, money, partnerByName, partnerLogoSources } from "@/lib/conf
 import type { Challenge } from "@/lib/config";
 import { prizeBreakdown } from "@/lib/settle";
 import { PartnerLogo, SponsorMark } from "./Logos";
+import Money from "./Money";
 
 /** full = 100% (deposit + prize), safe = 85–99% (deposit back), partial = below 85% (part back), refund = nobody hit 100% */
 export type Win = { c: Challenge; payout: number; paySig?: string; kind: "full" | "safe" | "partial" | "refund"; rate: number };
@@ -90,7 +91,7 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
         )}
         <div className={`tier-pill tier-${kind}`}>{refund ? "Refund" : `${pct}% achieved`}</div>
         <h2 className="celebrate-title">{heading}</h2>
-        <div className={`celebrate-amt ${won ? "" : "muted-amt"}`}>+{money(payout)}</div>
+        <div className={`celebrate-amt ${won ? "" : "muted-amt"}`}><Money sign="+" n={payout} /></div>
         <div className="muted">{sub}</div>
 
         {won && (

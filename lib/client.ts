@@ -3,6 +3,12 @@ import { useEffect, useState } from "react";
 export { useWallet as useMe } from "@/components/WalletProvider";
 export type { Me } from "@/components/WalletProvider";
 
+/** Opens the "Connect wallet" sheet from anywhere (buttons that need a wallet call this). */
+export const CONNECT_EVENT = "lockrun:connect";
+export function openConnect() {
+  window.dispatchEvent(new Event(CONNECT_EVENT));
+}
+
 let voiceChain: Promise<void> = Promise.resolve();
 
 const VOICE_KEY = "lockrun.voice";

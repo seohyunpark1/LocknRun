@@ -1,5 +1,5 @@
 "use client";
-import { useMe } from "@/lib/client";
+import { openConnect, useMe } from "@/lib/client";
 import { useState } from "react";
 import { Challenge, MAX_SPONSORS, SPONSOR_BONUSES, explorerTx, money } from "@/lib/config";
 import { SponsorMark } from "@/components/Logos";
@@ -73,7 +73,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
       )}
 
       {live && !full && !open && (
-        <button className="btn block" disabled={!me} onClick={() => setOpen(true)}>
+        <button className="btn block" onClick={() => (me ? setOpen(true) : openConnect())}>
           Sponsor this challenge
         </button>
       )}

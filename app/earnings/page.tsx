@@ -2,13 +2,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import Money from "@/components/Money";
+import WalletStatus from "@/components/WalletStatus";
 import NameGate from "@/components/NameGate";
 import { SponsorMark } from "@/components/Logos";
 import { Challenge, countedRuns, explorerAddress, explorerTx, money } from "@/lib/config";
 import { computePayouts, prizeBreakdown } from "@/lib/settle";
 import Badges from "@/components/Badges";
 import AdSlot from "@/components/AdSlot";
-import { speak, timeLeft, useMe, useNow } from "@/lib/client";
+import { openConnect, speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Row = {
   c: Challenge;
@@ -143,13 +145,39 @@ export default function EarningsPage() {
 
   if (!ready) return null;
 
+  if (!me)
+    return (
+      <AppShell>
+        <main className="wrap">
+          <section className="hero">
+            <h1>
+              My earnings<br />
+              <span className="hl">Get paid for finishing.</span>
+            </h1>
+            <p className="lede">Your balance, payouts, badges and receipts show up here once your wallet is connected.</p>
+          </section>
+          <div className="connect-card">
+            <div>
+              <b>Connect your wallet to see your earnings</b>
+              <p className="muted small" style={{ margin: "0.25rem 0 0" }}>Sign-in is a free signature. No money moves until you approve a deposit.</p>
+            </div>
+            <button className="btn primary" onClick={openConnect}>Connect wallet</button>
+          </div>
+          <div style={{ marginTop: "1.5rem" }}>
+            <AdSlot />
+          </div>
+          <NameGate onJoin={(n, wallet) => join(n, wallet)} />
+        </main>
+      </AppShell>
+    );
+
   return (
     <AppShell>
       <main className="wrap">
         <section className="hero">
           <h1>
             My earnings<br />
-            <span className={net >= 0 ? "hl" : "neg"}>{net >= 0 ? `+${money(net)}` : `-${money(-net)}`} so far.</span>
+            <span className={net >= 0 ? "hl" : "neg"}>{net >= 0 ? <Money sign="+" n={net} /> : <Money sign="-" n={-net} />} so far.</span>
           </h1>
           <p className="lede">Everything you&apos;ve won, every payout receipt, and your balance, ready to cash out.</p>
         </section>
@@ -157,19 +185,19 @@ export default function EarningsPage() {
         <div className="stats stats-4">
           <div className="stat-tile highlight">
             <div className="small">Balance</div>
-            <div className="stat-num">{balance === null ? "—" : money(balance)}</div>
+            <div className="stat-num">{balance === null ? "—" : <Money n={balance} />}</div>
           </div>
           <div className="stat-tile">
             <div className="muted small">Paid out to you</div>
-            <div className="stat-num">{money(won)}</div>
+            <div className="stat-num"><Money n={won} /></div>
           </div>
           <div className="stat-tile">
             <div className="muted small">Sponsor bonuses</div>
-            <div className="stat-num">{money(bonusTotal)}</div>
+            <div className="stat-num"><Money n={bonusTotal} /></div>
           </div>
           <div className="stat-tile">
             <div className="muted small">Locked in live challenges</div>
-            <div className="stat-num">{money(atStake)}</div>
+            <div className="stat-num"><Money n={atStake} /></div>
           </div>
         </div>
 
@@ -205,7 +233,7 @@ export default function EarningsPage() {
                       )}
                     </div>
                     <div className="earn-amt">
-                      {r.state === "won" && <b className="win">+{money(r.payout)}</b>}
+                      {r.state === "won" && <b className="win"><Money sign="+" n={r.payout} /></b>}
                       {r.state === "lost" && <b className="lose">-{money(r.c.deposit)}</b>}
                       {r.state === "back" && <b>{money(r.payout)} back</b>}
                       {r.state === "partial" && <b className="lose">{money(r.payout)} back</b>}
@@ -231,7 +259,7 @@ export default function EarningsPage() {
             </p>
             <div className="cash-bal">
               <span className="muted small">Available</span>
-              <b>{balance === null ? "—" : money(balance)}</b>
+              <b>{balance === null ? "—" : <Money n={balance} />}</b>
             </div>
             <Link href="/shop" className="btn block shop-link">🛍️ Spend it in the Shop</Link>
             <div className="muted small" style={{ textAlign: "center", margin: "0.6rem 0 0" }}>or send it to your wallet</div>
@@ -271,13 +299,15 @@ export default function EarningsPage() {
                 Test USDC stays on Solana Devnet. This transfer does not convert it to cash.
               </p>
             )}
+            <div className="phone-only" style={{ marginTop: "0.75rem" }}>
+              <WalletStatus variant="side" />
+            </div>
           </aside>
         </div>
         <div style={{ marginTop: "1.5rem" }}>
           <AdSlot />
         </div>
         <p className="foot">Hackathon demo · Solana devnet · test money only</p>
-        {!me && <NameGate onJoin={(n, wallet) => join(n, wallet)} />}
       </main>
     </AppShell>
   );

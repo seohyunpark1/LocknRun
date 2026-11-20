@@ -140,6 +140,11 @@ export function clean(raw: unknown, max: number, fallback = ""): string {
   return s || fallback;
 }
 
+/** "$68.75" without the unit, for big numbers that show "USDC" as a separate small label (components/Money). */
+export function usd(n: number) {
+  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 6 })}`;
+}
+
 export function money(n: number) {
   return `$${n.toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`;
 }

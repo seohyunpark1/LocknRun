@@ -3,12 +3,13 @@ import WalletStatus from "./WalletStatus";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Challenge, explorerAddress, money, partnerByName, partnerLogoSources } from "@/lib/config";
+import { Challenge, explorerAddress, partnerByName, partnerLogoSources } from "@/lib/config";
 import { computePayouts } from "@/lib/settle";
 import { weeklyRanking } from "@/lib/streaks";
 import { speak, useMe } from "@/lib/client";
 import Celebration, { Win } from "./Celebration";
 import { PartnerLogo } from "./Logos";
+import Money from "./Money";
 
 const CELEBRATED = "lockrun.celebrated"; // challenge ids we've already congratulated this runner for
 
@@ -57,11 +58,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const d = await (await fetch("/api/challenges", { cache: "no-store" })).json();
         setEscrow(d.escrow);
         checkForPayout(d.challenges || []);
-        const meRaw = localStorage.getItem("lockrun.me");
-        if (meRaw) {
-          const addr = JSON.parse(meRaw).address;
-          setStreak(weeklyRanking(d.challenges || [], Date.now()).find((r) => r.address === addr)?.streak || 0);
-        }
+        setStreak(me ? weeklyRanking(d.challenges || [], Date.now()).find((r) => r.address === me.address)?.streak || 0 : 0);
       } catch {}
       if (!stop) timer = setTimeout(load, 8000);
     }
@@ -135,7 +132,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="side-card">
           <div className="muted small">On the line right now</div>
-          <div className="side-amt">{escrow.balance === null ? "—" : money(escrow.balance)}</div>
+          <div className="side-amt">{escrow.balance === null ? "—" : <Money n={escrow.balance} />}</div>
           <div className="muted small">held in escrow on Solana</div>
           {escrow.address && (
             <a className="small" href={explorerAddress(escrow.address)} target="_blank" rel="noreferrer">
@@ -149,7 +146,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="muted small">Every deposit, payout and run proof is recorded on-chain.</div>
         </div>
         <div className="side-foot">
-          <WalletStatus />
           {me && (
             <div className="side-me">
               <span className="avatar">{me.name.charAt(0).toUpperCase()}</span>
@@ -159,6 +155,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           )}
+          <WalletStatus variant="side" />
           <div className="small" style={{ color: "var(--faint)", marginTop: "0.75rem" }}>Solana devnet · test money only</div>
         </div>
       </aside>
@@ -169,13 +166,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="brand">
             <span className="brand-dot" /> Lock&Run
           </Link>
-          <WalletStatus />
+          <WalletStatus variant="top" />
           {me && (
-            <span className="me">
+            <Link href="/earnings" className="me" title={me.address}>
               {streak > 0 && <span className="me-streak">🔥{streak}</span>}
               {me.name}
               {gold && <span className="gold-star">★</span>}
-            </span>
+            </Link>
           )}
         </header>
 

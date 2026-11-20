@@ -2,11 +2,12 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import AppShell from "@/components/AppShell";
+import Money from "@/components/Money";
 import NameGate from "@/components/NameGate";
 import AdSlot from "@/components/AdSlot";
 import { explorerTx, money } from "@/lib/config";
-import { Order, ShopItem, shopItem } from "@/lib/shop";
-import { useMe } from "@/lib/client";
+import { Order, SHOP_ITEMS, ShopItem, shopItem } from "@/lib/shop";
+import { openConnect, useMe } from "@/lib/client";
 
 type Filter = "all" | "sponsor" | "app";
 
@@ -78,16 +79,9 @@ export default function ShopPage() {
   }
 
   if (!ready) return null;
-  if (!me)
-    return (
-      <AppShell>
-        <main className="wrap">
-          <NameGate onJoin={(n) => join(n)} />
-        </main>
-      </AppShell>
-    );
 
-  const shown = items.filter((i) => filter === "all" || (filter === "app" ? i.brand === "Lock&Run" : i.brand !== "Lock&Run"));
+  const catalog = me ? items : SHOP_ITEMS; // browse before connecting; buying needs a wallet
+  const shown = catalog.filter((i) => filter === "all" || (filter === "app" ? i.brand === "Lock&Run" : i.brand !== "Lock&Run"));
 
   return (
     <AppShell>
@@ -103,9 +97,9 @@ export default function ShopPage() {
         <div className="shop-bal">
           <div>
             <div className="small">Your balance</div>
-            <div className="stat-num">{balance === null ? "—" : money(balance)}</div>
+            <div className="stat-num">{balance === null ? "—" : <Money n={balance} />}</div>
           </div>
-          <Link href="/earnings" className="btn">My earnings</Link>
+          {me ? <Link href="/earnings" className="btn">My earnings</Link> : <button className="btn" onClick={openConnect}>Connect wallet</button>}
         </div>
 
         <div className="layout">
@@ -122,12 +116,12 @@ export default function ShopPage() {
                 const owned = orders.filter((o) => o.itemId === i.id).length;
                 const short = balance !== null && balance < i.price;
                 return (
-                  <button key={i.id} className="shop-item" onClick={() => { setErr(""); setPick(i); }}>
+                  <button key={i.id} className="shop-item" onClick={() => { if (!me) return openConnect(); setErr(""); setPick(i); }}>
                     <span className="shop-icon" style={{ background: i.color }} aria-hidden>{i.icon}</span>
                     <span className="shop-brand">{i.brand}</span>
                     <b className="shop-name">{i.name}</b>
                     <span className="shop-foot">
-                      <span className="shop-price">{money(i.price)}</span>
+                      <span className="shop-price"><Money n={i.price} /></span>
                       {owned > 0 ? <span className="shop-owned">Owned{owned > 1 ? ` ×${owned}` : ""}</span> : short ? <span className="muted small">Need {money(i.price - (balance || 0))} more</span> : <span className="shop-buy">Buy</span>}
                     </span>
                   </button>
@@ -172,6 +166,8 @@ export default function ShopPage() {
           <AdSlot />
         </div>
 
+        {!me && <NameGate onJoin={(n, wallet) => join(n, wallet)} />}
+
         {pick && (
           <div className="modal" onClick={() => !busy && setPick(null)}>
             <div className="card shop-confirm" onClick={(e) => e.stopPropagation()}>
@@ -181,6 +177,9 @@ export default function ShopPage() {
               <p className="muted small" style={{ marginTop: 0 }}>{pick.desc}</p>
               <div className="confirm-rows">
                 <div><span>Price</span><b>{money(pick.price)}</b></div>
+                <div><span>Paid to</span><b title={store}>Lock&amp;Run store{store ? ` · ${store.slice(0, 4)}…${store.slice(-4)}` : ""}</b></div>
+                <div><span>Network</span><b>Solana Devnet</b></div>
+                <div><span>Network fee</span><b>Tiny SOL fee, from your wallet</b></div>
                 <div><span>Your balance</span><b>{balance === null ? "—" : money(balance)}</b></div>
                 <div><span>After</span><b>{balance === null ? "—" : money(Math.max(0, balance - pick.price))}</b></div>
               </div>
@@ -191,7 +190,7 @@ export default function ShopPage() {
               <button className="btn block" style={{ marginTop: "0.5rem" }} disabled={busy} onClick={() => setPick(null)}>
                 Cancel
               </button>
-              <p className="muted small" style={{ marginBottom: 0 }}>Paid in USDC on Solana. A small network fee is paid from your wallet in SOL.</p>
+              <p className="muted small" style={{ marginBottom: 0 }}>After you tap Pay, review it once more, then approve it in your wallet.</p>
             </div>
           </div>
         )}

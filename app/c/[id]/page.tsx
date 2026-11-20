@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import NameGate from "@/components/NameGate";
 import AppShell from "@/components/AppShell";
+import Money from "@/components/Money";
 import RunTracker from "@/components/RunTracker";
 import SponsorBox from "@/components/SponsorBox";
 import AdSlot from "@/components/AdSlot";
@@ -12,7 +13,7 @@ import { SponsorMark } from "@/components/Logos";
 import StravaImport from "@/components/StravaImport";
 import { Challenge, Run, bonusOf, countedRuns, explorerTx, isFinisher, money, pace, potOf } from "@/lib/config";
 import { computePayouts } from "@/lib/settle";
-import { speak, timeLeft, useMe, useNow } from "@/lib/client";
+import { openConnect, speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 export default function ChallengePage() {
   const { id } = useParams<{ id: string }>();
@@ -145,7 +146,7 @@ export default function ChallengePage() {
           )}
         </div>
         <div className="potbox">
-          <div className="pot-amt">{money(pot)}</div>
+          <div className="pot-amt"><Money n={pot} /></div>
           <div className="pot-label">in the pot · {c.participants.length} runner{c.participants.length > 1 ? "s" : ""}</div>
           <button
             className="btn ghost"
@@ -171,8 +172,8 @@ export default function ChallengePage() {
                 {c.participants.length > 0 ? ", plus prize money from anyone who doesn't" : ""}
                 {bonus > 0 ? ` and the ${money(bonus)} sponsor bonus` : ""}.
               </p>
-              <button className="btn primary block" disabled={!!busy || !me} onClick={() => act("join")}>
-                {busy === "join" ? "Locking your deposit…" : `Join & lock ${money(c.deposit)}`}
+              <button className="btn primary block" disabled={!!busy} onClick={() => (me ? act("join") : openConnect())}>
+                {busy === "join" ? "Locking your deposit…" : me ? `Join & lock ${money(c.deposit)}` : `Connect wallet to join`}
               </button>
             </div>
           )}
@@ -249,7 +250,7 @@ export default function ChallengePage() {
                   <div className="payout lb-pay">
                     {c.status === "settled" ? (
                       <b className={(p.payout || 0) > c.deposit ? "win" : (p.payout || 0) >= c.deposit ? "" : "lose"}>
-                        {(p.payout || 0) > c.deposit ? `+${money(p.payout || 0)}` : (p.payout || 0) >= c.deposit ? `${money(c.deposit)} back` : `-${money(Math.round((c.deposit - (p.payout || 0)) * 100) / 100)}`}
+                        {(p.payout || 0) > c.deposit ? <Money sign="+" n={p.payout || 0} /> : (p.payout || 0) >= c.deposit ? <><Money n={c.deposit} /> back</> : <Money sign="-" n={Math.round((c.deposit - (p.payout || 0)) * 100) / 100} />}
                       </b>
                     ) : (
                       <span className="muted small">{po ? `${Math.round(po.rate * 100)}% · ${money(po.amount)}` : "—"}</span>
@@ -288,7 +289,7 @@ export default function ChallengePage() {
               <div>
                 <b>Deposit back + prize</b>
                 <div className="muted small">
-                  {prizeNow > 0 ? `Prize right now: +${money(prizeNow)} each` : "Prize grows as others miss runs or sponsors join"}
+                  {prizeNow > 0 ? `${c.status === "settled" ? "Prize paid" : "Prize right now"}: +${money(prizeNow)} each` : c.status === "settled" ? "Nobody hit 100%, so everyone got their deposit back" : "Prize grows as others miss runs or sponsors join"}
                 </div>
               </div>
             </div>

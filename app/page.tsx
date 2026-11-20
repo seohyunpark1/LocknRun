@@ -8,9 +8,10 @@ import Dial from "@/components/Dial";
 import AdSlot from "@/components/AdSlot";
 import TypeValue from "@/components/TypeValue";
 import AppShell from "@/components/AppShell";
+import Money from "@/components/Money";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
 import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, partnerLogoSources, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
-import { speak, timeLeft, useMe, useNow } from "@/lib/client";
+import { openConnect, speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
 
@@ -46,7 +47,7 @@ export default function Home() {
   }, []);
 
   async function create() {
-    if (!me) return;
+    if (!me) return openConnect();
     setErr("");
     setCreating(true);
     try {
@@ -105,7 +106,7 @@ export default function Home() {
       <div className="stats">
         <div className="stat-tile">
           <div className="muted small">On the line</div>
-          <div className="stat-num">{money(data.escrow.balance ?? locked)}</div>
+          <div className="stat-num"><Money n={data.escrow.balance ?? locked} /></div>
         </div>
         <div className="stat-tile">
           <div className="muted small">Live</div>
@@ -187,7 +188,7 @@ export default function Home() {
             hideHead
           />
           <button className="btn primary block" style={{ marginTop: "1.25rem" }} disabled={creating} onClick={create}>
-            {creating ? "Locking your deposit…" : `Create & lock ${money(deposit)}`}
+            {creating ? "Locking your deposit…" : me ? `Create & lock ${money(deposit)}` : "Connect wallet to create"}
           </button>
           <p className="muted small" style={{ textAlign: "center", margin: "8px 0 0" }}>
             Test USDC from your connected wallet. Small devnet SOL balance required for fees. Use 15 min for demos.
@@ -236,7 +237,7 @@ function ChallengeCard({ c, now, meAddr }: { c: Challenge; now: number; meAddr?:
   return (
     <Link href={`/c/${c.id}`} className={`ccard ${joined ? "mine" : ""} ${bonusOf(c) > 0 ? "sponsored" : ""}`}>
       <div className="pot">
-        <div className="pot-amt">{money(potOf(c))}</div>
+        <div className="pot-amt"><Money n={potOf(c)} /></div>
         <div className="pot-label">pot</div>
       </div>
       <div>
