@@ -1,8 +1,10 @@
+import { walletSession } from "@/lib/wallet-auth";
+import { prepareDeposit } from "@/lib/deposits";
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import crypto from "node:crypto";
 import { MAX_PACE_SEC_PER_KM, MAX_PHOTO_BYTES, MIN_PACE_SEC_PER_KM, Run, clean } from "@/lib/config";
-import { lockDeposit, payFromEscrow, stampProof } from "@/lib/solana-server";
+import { payFromEscrow, stampProof } from "@/lib/solana-server";
 import { computePayouts } from "@/lib/settle";
 import { acquireLock, getChallenge, mutate, newId, releaseLock, savePhoto } from "@/lib/store";
 import { StravaRun, getRun, stravaEnabled } from "@/lib/strava";
@@ -14,11 +16,12 @@ export const maxDuration = 60; // payouts send several Solana transactions
 /** Run `fn` while holding a per-challenge lock, so concurrent writes don't overwrite each other. */
 async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   for (let i = 0; i < 40; i++) {
-    if (await acquireLock(key, 60)) {
+    const token = await acquireLock(key, 120);
+    if (token) {
       try {
         return await fn();
       } finally {
-        await releaseLock(key);
+        await releaseLock(key, token);
       }
     }
     await new Promise((r) => setTimeout(r, 250));
@@ -46,6 +49,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const id = params.id;
 
   try {
+    const address = await walletSession(req);
+    if (!address) return fail("Connect your wallet first.", 401);
+    body.address = address;
     if (body.action === "join") {
       try {
         new PublicKey(body.address);
@@ -58,11 +64,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         const now = Date.now();
         if (c.status !== "active" || now >= c.endsAt) return fail("This challenge already ended.", 409);
         if (c.participants.some((p) => p.address === body.address)) return fail("You're already in!", 409);
-        const joinSig = await lockDeposit(c.id, c.deposit); // money first
-        const updated = await mutate(id, (x) => {
-          x.participants.push({ name: clean(body.name, 24, "Runner"), address: String(body.address), joinedAt: now, joinSig, runs: [] });
-        });
-        return NextResponse.json({ challenge: updated });
+        const prepared = await prepareDeposit(c, address, clean(body.name, 24, "Runner"));
+        return NextResponse.json({ ...prepared, challenge: c });
       });
     }
 
@@ -129,10 +132,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         : `strava:${run.stravaId}`;
       try {
         const proofSig = await stampProof(`LockRun|run|${id}|${run.km}km|${run.sec}s|${fingerprint}`);
-        await mutate(id, (x) => {
+        await withLock(`c:${id}`, () => mutate(id, (x) => {
           const r = x.participants.flatMap((y) => y.runs).find((y) => y.id === run.id);
           if (r) r.proofSig = proofSig;
-        });
+        }));
         run.proofSig = proofSig;
       } catch (e) {
         console.error("proof stamp failed:", e instanceof Error ? e.message : e);
@@ -147,8 +150,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       if (c0.status === "settled") return NextResponse.json({ challenge: c0 });
 
       // Separate long-lived lock so a challenge is never paid out twice.
-      if (!(await acquireLock(`settle:${id}`, 300))) return fail("Already paying out, hang on…", 409);
+      const settlementLock = await acquireLock(`c:${id}`, 300);
+      if (!settlementLock) return fail("Already paying out, hang on…", 409);
       try {
+        const latest = await getChallenge(id);
+        if (latest?.pendingDeposits?.length) return fail("Confirm pending deposits before settlement.", 409);
         const c = (await mutate(id, (x) => {
           if (x.status === "active") x.status = "settling";
         }))!;
@@ -177,7 +183,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         });
         return NextResponse.json({ challenge: updated });
       } finally {
-        await releaseLock(`settle:${id}`);
+        await releaseLock(`c:${id}`, settlementLock);
       }
     }
 

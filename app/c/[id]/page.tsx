@@ -1,4 +1,5 @@
 "use client";
+import WalletStatus from "@/components/WalletStatus";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -11,7 +12,7 @@ import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 export default function ChallengePage() {
   const { id } = useParams<{ id: string }>();
-  const { me, ready, join } = useMe();
+  const { me, ready, join, deposit: lockWalletDeposit } = useMe();
   const now = useNow();
   const [c, setC] = useState<Challenge | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -81,7 +82,8 @@ export default function ChallengePage() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Something went wrong");
-      setC(d.challenge);
+      const confirmed = action === "join" ? await lockWalletDeposit(d) : d;
+      setC(confirmed.challenge);
       if (action === "join") speak(`You're in, ${me.name}! Your deposit is locked. Now go run.`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
@@ -125,7 +127,7 @@ export default function ChallengePage() {
         <Link href="/" className="brand" style={{ textDecoration: "none" }}>
           <span className="brand-dot" /> Lock&Run
         </Link>
-        {me && <div className="me">{me.name}</div>}
+        <WalletStatus />
       </div>
 
       <div className="hero2">
@@ -286,8 +288,8 @@ export default function ChallengePage() {
 
       {!me && (
         <NameGate
-          onJoin={(n) => {
-            join(n);
+          onJoin={async (n, wallet) => {
+            await join(n, wallet);
             speak(`Welcome, ${n}!`);
           }}
         />

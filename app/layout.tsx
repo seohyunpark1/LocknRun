@@ -1,3 +1,4 @@
+import WalletProvider from "@/components/WalletProvider";
 import "./globals.css";
 import type { Metadata, Viewport } from "next";
 
@@ -28,7 +29,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><WalletProvider>{children}</WalletProvider></body>
     </html>
   );
 }

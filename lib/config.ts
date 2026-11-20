@@ -46,7 +46,7 @@ export type Participant = {
   paySig?: string; // escrow -> runner
 };
 
-export type ChallengeStatus = "active" | "settling" | "settled";
+export type ChallengeStatus = "draft" | "active" | "settling" | "settled";
 
 export type Challenge = {
   id: string;
@@ -59,6 +59,7 @@ export type Challenge = {
   creatorName: string;
   status: ChallengeStatus;
   participants: Participant[];
+  pendingDeposits?: string[];
   settledAt?: number;
 };
 
@@ -87,7 +88,7 @@ export function clean(raw: unknown, max: number, fallback = ""): string {
 }
 
 export function money(n: number) {
-  return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
+  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`;
 }
 
 export function pace(secPerKm: number) {

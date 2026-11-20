@@ -1,5 +1,6 @@
 // Server-only Solana logic: the challenge escrow. Never import this in client code.
 import "server-only";
+import { kvGet, kvSet } from "./store";
 import {
   Connection,
   Keypair,
@@ -37,29 +38,31 @@ export function escrowAddress(): string | null {
 
 const usdcAccount = (owner: PublicKey) => getAssociatedTokenAddressSync(mint, owner, true);
 
-/** USDC transfer with a memo. The sponsor pays fees and creates the receiver's account, so runners never need SOL. */
-async function transferUsdc(from: Keypair, toOwner: PublicKey, amountUsd: number, memo: string) {
-  const payer = sponsor();
-  const toAta = usdcAccount(toOwner);
-  const raw = BigInt(Math.round(amountUsd * 10 ** USDC_DECIMALS));
-  const tx = new Transaction().add(
-    createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, toAta, toOwner, mint),
-    createTransferCheckedInstruction(usdcAccount(from.publicKey), mint, toAta, from.publicKey, raw, USDC_DECIMALS),
-    new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(memo, "utf8") })
-  );
-  tx.feePayer = payer.publicKey;
-  const signers = from.publicKey.equals(payer.publicKey) ? [payer] : [payer, from];
-  return sendAndConfirmTransaction(connection, tx, signers, { commitment: "confirmed" });
-}
-
-/** Runner joins: deposit is locked in escrow. (Sponsor = demo stand-in for a card / Apple Pay payment.) */
-export function lockDeposit(challengeId: string, amount: number) {
-  return transferUsdc(sponsor(), escrow().publicKey, amount, `LockRun|join|${challengeId}`);
-}
-
-/** Settlement: escrow pays a finisher (or refunds everyone if nobody finished). */
-export function payFromEscrow(challengeId: string, to: string, amount: number) {
-  return transferUsdc(escrow(), new PublicKey(to), amount, `LockRun|payout|${challengeId}`);
+/** Returns rewards to the immutable participant address recorded at deposit. */
+export async function payFromEscrow(challengeId: string, to: string, amount: number) {
+  const key = `payout:${challengeId}:${to}`;
+  type Payment = { signature: string; raw: string; blockhash: string; lastValidBlockHeight: number; amount: number };
+  let payment = await kvGet<Payment>(key);
+  if (payment && payment.amount !== amount) throw new Error("Recorded payout amount differs; reconciliation required.");
+  if (!payment) {
+    const payer = sponsor(), source = escrow(), owner = new PublicKey(to);
+    const lifetime = await connection.getLatestBlockhash('confirmed');
+    const tx = new Transaction({ ...lifetime, feePayer: payer.publicKey }).add(
+      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, usdcAccount(owner), owner, mint),
+      createTransferCheckedInstruction(usdcAccount(source.publicKey), mint, usdcAccount(owner), source.publicKey, BigInt(Math.round(amount * 10 ** USDC_DECIMALS)), USDC_DECIMALS),
+      new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|payout|${challengeId}`) })
+    );
+    tx.sign(...(source.publicKey.equals(payer.publicKey) ? [payer] : [payer, source]));
+    payment = { ...lifetime, amount, signature: bs58.encode(tx.signature!), raw: tx.serialize().toString('base64') };
+    await kvSet(key, payment);
+  }
+  const status = (await connection.getSignatureStatuses([payment.signature], { searchTransactionHistory: true })).value[0];
+  if (status?.err) throw new Error('Payout failed; reconciliation required before a new transfer.');
+  if (status && ['confirmed', 'finalized'].includes(status.confirmationStatus || '')) return payment.signature;
+  await connection.sendRawTransaction(Buffer.from(payment.raw, 'base64'), { skipPreflight: false });
+  const result = await connection.confirmTransaction({ signature: payment.signature, blockhash: payment.blockhash, lastValidBlockHeight: payment.lastValidBlockHeight }, 'confirmed');
+  if (result.value.err) throw new Error('Payout failed on Solana.');
+  return payment.signature;
 }
 
 /**

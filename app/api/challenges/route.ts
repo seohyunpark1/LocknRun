@@ -1,7 +1,9 @@
+import { walletSession } from "@/lib/wallet-auth";
+import { prepareDeposit } from "@/lib/deposits";
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import { Challenge, DEPOSITS, DURATIONS, GOAL_KMS, RUNS_REQUIRED, clean } from "@/lib/config";
-import { escrowAddress, escrowBalance, lockDeposit } from "@/lib/solana-server";
+import { escrowAddress, escrowBalance } from "@/lib/solana-server";
 import { insertChallenge, listChallenges, newId } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -11,7 +13,7 @@ export const maxDuration = 60;
 // GET /api/challenges -> all challenges + the escrow wallet's live USDC balance on Solana.
 export async function GET() {
   return NextResponse.json({
-    challenges: await listChallenges(),
+    challenges: (await listChallenges()).filter(c => c.status !== "draft"),
     escrow: { address: escrowAddress(), balance: await escrowBalance() },
   });
 }
@@ -28,7 +30,10 @@ function limited(ip: string) {
 // POST /api/challenges -> create a challenge; the creator joins and their deposit is locked in escrow.
 export async function POST(req: Request) {
   try {
+    const address = await walletSession(req);
+    if (!address) return NextResponse.json({ error: "Connect your wallet first." }, { status: 401 });
     const b = await req.json();
+    b.address = address;
     const goalKm = Number(b.goalKm);
     const runsRequired = Number(b.runsRequired);
     const deposit = Number(b.deposit);
@@ -47,7 +52,7 @@ export async function POST(req: Request) {
 
     const name = clean(b.name, 24, "Runner");
     const id = newId();
-    const joinSig = await lockDeposit(id, deposit); // money first: no deposit, no challenge
+
 
     const now = Date.now();
     const c: Challenge = {
@@ -59,11 +64,12 @@ export async function POST(req: Request) {
       createdAt: now,
       endsAt: now + minutes * 60_000,
       creatorName: name,
-      status: "active",
-      participants: [{ name, address: String(b.address), joinedAt: now, joinSig, runs: [] }],
+      status: "draft",
+      participants: [],
     };
+    const prepared = await prepareDeposit(c, address, name);
     await insertChallenge(c);
-    return NextResponse.json({ challenge: c });
+    return NextResponse.json({ ...prepared, challenge: c });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not create challenge";
     console.error("create challenge:", msg);
