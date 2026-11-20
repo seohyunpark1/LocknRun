@@ -159,7 +159,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           )}
-          <div className="small" style={{ color: "var(--faint)", marginTop: "0.75rem" }}>Solana devnet · test money only</div>
+          <div className="small" style={{ color: "var(--faint)", marginTop: "0.75rem" }}>Built on Solana</div>
         </div>
       </aside>
 

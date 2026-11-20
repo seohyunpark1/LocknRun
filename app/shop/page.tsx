@@ -47,7 +47,7 @@ export default function ShopPage() {
     setBusy(true);
     try {
       if (!store) throw new Error("Shop is still loading. Try again.");
-      if (!window.confirm(`Buy "${item.name}" for ${item.price} test USDC\nFrom: ${me.address}\nTo (Lock&Run store wallet): ${store}\nNetwork: Solana Devnet\nNetwork fee: paid from your wallet in SOL\nApprove this payment in your wallet?`)) throw new Error("Purchase cancelled.");
+      if (!window.confirm(`Buy "${item.name}" for ${item.price} USDC\nFrom: ${me.address}\nTo (Lock&Run store wallet): ${store}\nNetwork: Solana Devnet\nNetwork fee: paid from your wallet in SOL\nApprove this payment in your wallet?`)) throw new Error("Purchase cancelled.");
       // 1) Server builds the payment (price from its own catalog); you are the only signer and fee payer.
       const r1 = await fetch("/api/shop", {
         method: "POST",

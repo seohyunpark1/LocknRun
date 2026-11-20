@@ -268,7 +268,7 @@ export default function EarningsPage() {
                   {me.address.slice(0, 4)}…{me.address.slice(-4)} ↗
                 </a>
                 <br />
-                Test USDC stays on Solana Devnet. This transfer does not convert it to cash.
+                This sends USDC to another Solana wallet. It does not convert it to cash.
               </p>
             )}
           </aside>
@@ -276,7 +276,7 @@ export default function EarningsPage() {
         <div style={{ marginTop: "1.5rem" }}>
           <AdSlot />
         </div>
-        <p className="foot">Hackathon demo · Solana devnet · test money only</p>
+        <p className="foot">Built on Solana</p>
         {!me && <NameGate onJoin={(n, wallet) => join(n, wallet)} />}
       </main>
     </AppShell>

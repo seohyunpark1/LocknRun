@@ -123,7 +123,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
           </button>
           <p className="muted small" style={{ margin: "0.5rem 0 0" }}>
             Your logo and ad message appear in Lock&amp;Run&apos;s ad spots while the challenge is live, and on the payout
-            screen of every runner who hits 100%. Your connected wallet approves the test USDC bonus and pays network fees. If nobody hits 100%, the bonus returns to the wallet that funded it.
+            screen of every runner who finishes. Your connected wallet approves the USDC bonus and pays network fees. If nobody finishes, the bonus returns to the wallet that funded it.
           </p>
         </div>
       )}

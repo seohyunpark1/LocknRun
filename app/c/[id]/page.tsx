@@ -329,7 +329,7 @@ export default function ChallengePage() {
         </div>
       </div>
 
-      <p className="foot">Hackathon demo · Solana devnet · test money only{demo ? " · demo mode on" : ""}</p>
+      <p className="foot">Built on Solana{demo ? " · demo mode on" : ""}</p>
 
       {!me && (
         <NameGate

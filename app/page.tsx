@@ -84,8 +84,8 @@ export default function Home() {
             Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
           </h1>
           <p className="lede">
-            Put money on your running goal with friends. Hit 100% and get your deposit back <b>plus</b> prize money from
-            the runners who didn&apos;t. Your wallet signs a test USDC deposit into server-managed escrow on Solana.
+            Stake USDC on your running goal with friends. Finish and get your stake back <b>plus</b> a share of what the
+            runners who didn&apos;t finish forfeited. Your stake is held on Solana until the challenge ends.
           </p>
         </div>
         <aside className="app-sponsors" aria-label="Partners">
@@ -148,7 +148,7 @@ export default function Home() {
             typeable={{ ...RANGES.goalKm, suffix: () => "km" }} />
           <Dial label="Runs to finish" options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} format={(v) => `${v} run${v > 1 ? "s" : ""}`}
             typeable={{ ...RANGES.runs, suffix: (v) => (v === 1 ? "run" : "runs") }} />
-          <Dial label="Deposit · test USDC" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`}
+          <Dial label="Stake · USDC" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`}
             typeable={{ ...RANGES.deposit, prefix: "$" }} />
           <div className="dial">
             <div className="dial-head">
@@ -190,15 +190,19 @@ export default function Home() {
             {creating ? "Locking your deposit…" : `Create & lock ${money(deposit)}`}
           </button>
           <p className="muted small" style={{ textAlign: "center", margin: "8px 0 0" }}>
-            Test USDC from your connected wallet. Small devnet SOL balance required for fees. Use 15 min for demos.
+            USDC is taken from your connected wallet. A small amount of SOL is needed for network fees.
           </p>
           {err && <p className="err">{err}</p>}
         </aside>
       </div>
       <section className="steps" id="how">
-        <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your 10 test USDC is locked in escrow.</div>
-        <div className="step"><b>2 · Run and prove it</b>GPS and a voice coach track every km. Add a photo or a Strava run as proof.</div>
-        <div className="step"><b>3 · Get rewarded</b>100% = deposit + prize. 85%+ = deposit back. Less = the % you finished.</div>
+        <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs and choose how much USDC you want to stake. Your stake is locked until the challenge ends.</div>
+        <div className="step"><b>2 · Run and check in</b>Record each run with your phone, then add one photo check-in. You&apos;ll see it approved, sent for review, or rejected, with the reason.</div>
+        <div className="step"><b>3 · Get rewarded</b>
+          <b style={{ display: "inline" }}>Everyone finishes:</b> everyone gets their stake back, plus any sponsor bonus.<br />
+          <b style={{ display: "inline" }}>Some finish:</b> finishers split the pool, including the stakes of those who didn&apos;t.<br />
+          <b style={{ display: "inline" }}>No one finishes:</b> every stake is refunded.
+        </div>
       </section>
 
       <section className="partners" aria-label="Powered by">
@@ -214,7 +218,7 @@ export default function Home() {
         </div>
       </section>
 
-      <p className="foot">Hackathon demo · Solana devnet · test money only</p>
+      <p className="foot">Built on Solana</p>
 
       {!me && (
         <NameGate
