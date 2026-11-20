@@ -7,12 +7,17 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "setup": "node scripts/setup-wallets.mjs"
+    "setup": "node scripts/setup-wallets.mjs",
+    "test": "node --conditions=react-server --import tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.9",
+    "@solana/wallet-standard-features": "^1.5.0",
     "@solana/web3.js": "^1.98.0",
     "@upstash/redis": "^1.41.0",
+    "@wallet-standard/app": "^1.1.1",
+    "@wallet-standard/base": "^1.1.1",
+    "@wallet-standard/features": "^1.1.1",
     "bs58": "^6.0.0",
     "next": "^14.2.35",
     "qrcode": "^1.5.4",
@@ -25,6 +30,7 @@
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.5.0"
   }
 }

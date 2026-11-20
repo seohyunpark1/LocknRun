@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -15,7 +16,7 @@ type Data = { challenges: Challenge[]; escrow: { address: string | null; balance
 
 export default function Home() {
   const router = useRouter();
-  const { me, ready, join } = useMe();
+  const { me, ready, join, deposit: lockWalletDeposit } = useMe();
   const now = useNow();
   const [data, setData] = useState<Data>({ challenges: [], escrow: { address: null, balance: null } });
 
@@ -56,7 +57,8 @@ export default function Home() {
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Could not create");
-      router.push(`/c/${d.challenge.id}`);
+      const confirmed = await lockWalletDeposit(d);
+      router.push(`/c/${confirmed.challenge.id}`);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
       setCreating(false);
@@ -83,7 +85,7 @@ export default function Home() {
           </h1>
           <p className="lede">
             Put money on your running goal with friends. Hit 100% and get your deposit back <b>plus</b> prize money from
-            the runners who didn&apos;t. Everything waits in escrow on Solana, so nobody can back out of paying.
+            the runners who didn&apos;t. Your wallet signs a test USDC deposit into server-managed escrow on Solana.
           </p>
         </div>
         <aside className="app-sponsors" aria-label="Partners">
@@ -146,7 +148,7 @@ export default function Home() {
             typeable={{ ...RANGES.goalKm, suffix: () => "km" }} />
           <Dial label="Runs to finish" options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} format={(v) => `${v} run${v > 1 ? "s" : ""}`}
             typeable={{ ...RANGES.runs, suffix: (v) => (v === 1 ? "run" : "runs") }} />
-          <Dial label="Deposit" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`}
+          <Dial label="Deposit · test USDC" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`}
             typeable={{ ...RANGES.deposit, prefix: "$" }} />
           <div className="dial">
             <div className="dial-head">
@@ -188,13 +190,13 @@ export default function Home() {
             {creating ? "Locking your deposit…" : `Create & lock ${money(deposit)}`}
           </button>
           <p className="muted small" style={{ textAlign: "center", margin: "8px 0 0" }}>
-            Demo mode: paid like Apple Pay, with test dollars. Use 15 min for live demos.
+            Test USDC from your connected wallet. Small devnet SOL balance required for fees. Use 15 min for demos.
           </p>
           {err && <p className="err">{err}</p>}
         </aside>
       </div>
       <section className="steps" id="how">
-        <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your $10 is locked in escrow.</div>
+        <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your 10 test USDC is locked in escrow.</div>
         <div className="step"><b>2 · Run and prove it</b>GPS and a voice coach track every km. Add a photo or a Strava run as proof.</div>
         <div className="step"><b>3 · Get rewarded</b>100% = deposit + prize. 85%+ = deposit back. Less = the % you finished.</div>
       </section>
@@ -216,8 +218,8 @@ export default function Home() {
 
       {!me && (
         <NameGate
-          onJoin={(n) => {
-            join(n);
+          onJoin={async (n, wallet) => {
+            await join(n, wallet);
             speak(`Welcome to Lock and Run, ${n}! Let's get running.`);
           }}
         />

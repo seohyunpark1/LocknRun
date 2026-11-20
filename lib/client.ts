@@ -1,39 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Keypair } from "@solana/web3.js";
-import bs58 from "bs58";
-
-export type Me = { name: string; address: string };
-const ME_KEY = "lockrun.me";
-
-/** The runner's identity. A Solana wallet is created silently in the browser on first visit. */
-export function useMe() {
-  const [me, setMe] = useState<Me | null>(null);
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const read = () => {
-      try {
-        const saved = localStorage.getItem(ME_KEY);
-        if (saved) setMe(JSON.parse(saved));
-      } catch {}
-    };
-    read();
-    setReady(true);
-    // Keep every component using useMe (page + app shell) in sync after sign-up.
-    window.addEventListener("lockrun:me", read);
-    return () => window.removeEventListener("lockrun:me", read);
-  }, []);
-  function join(name: string) {
-    // Hackathon demo: key in localStorage. Production: embedded wallet with email / passkey login.
-    const kp = Keypair.generate();
-    localStorage.setItem("lockrun.secret", bs58.encode(kp.secretKey));
-    const m = { name: name.trim().slice(0, 24), address: kp.publicKey.toBase58() };
-    localStorage.setItem(ME_KEY, JSON.stringify(m));
-    setMe(m);
-    window.dispatchEvent(new Event("lockrun:me"));
-  }
-  return { me, ready, join };
-}
+export { useWallet as useMe } from "@/components/WalletProvider";
+export type { Me } from "@/components/WalletProvider";
 
 let voiceChain: Promise<void> = Promise.resolve();
 

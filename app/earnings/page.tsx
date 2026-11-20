@@ -1,8 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Keypair, Transaction } from "@solana/web3.js";
-import bs58 from "bs58";
 import AppShell from "@/components/AppShell";
 import NameGate from "@/components/NameGate";
 import { SponsorMark } from "@/components/Logos";
@@ -23,18 +21,17 @@ type Row = {
   done: number;
 };
 
-const toB64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...Array.from(bytes)));
-const fromB64 = (s: string) => Uint8Array.from(atob(s), (ch) => ch.charCodeAt(0));
 
 /** "Getting paid": balance, winnings, payout history and cash out. */
 export default function EarningsPage() {
-  const { me, ready, join } = useMe();
+  const { me, ready, join, signWithdrawal } = useMe();
   const now = useNow(5000);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pendingTransfer, setPendingTransfer] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string; sig?: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -42,7 +39,7 @@ export default function EarningsPage() {
     try {
       const [cs, w] = await Promise.all([
         fetch("/api/challenges", { cache: "no-store" }).then((r) => r.json()),
-        fetch(`/api/wallet?address=${me.address}`, { cache: "no-store" }).then((r) => r.json()),
+        fetch("/api/withdrawals", { cache: "no-store" }).then((r) => r.json()),
       ]);
       setChallenges(cs.challenges || []);
       setBalance(typeof w.usdc === "number" ? w.usdc : null);
@@ -50,6 +47,7 @@ export default function EarningsPage() {
   }, [me]);
 
   useEffect(() => {
+    setPendingTransfer(!!sessionStorage.getItem("lockrun.withdrawal"));
     load();
     const t = setInterval(load, 8000);
     return () => clearInterval(t);
@@ -90,31 +88,33 @@ export default function EarningsPage() {
   async function cashOut() {
     if (!me) return;
     setMsg(null);
+    if (sessionStorage.getItem("lockrun.withdrawal")) return setMsg({ ok: false, text: "Retry confirmation of your pending transfer before sending again." });
     const amt = Number(amount || balance || 0);
     if (!to.trim()) return setMsg({ ok: false, text: "Paste the Solana address to send to." });
     setBusy(true);
     try {
       // 1) Server builds the transfer and signs only as fee payer.
-      const r1 = await fetch("/api/wallet", {
+      const r1 = await fetch("/api/withdrawals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "prepare", from: me.address, to: to.trim(), amount: amt }),
       });
       const d1 = await r1.json();
       if (!r1.ok) throw new Error(d1.error || "Couldn't prepare the transfer.");
-      // 2) Your browser signs with your own key (it never leaves this device).
-      const secret = localStorage.getItem("lockrun.secret");
-      if (!secret) throw new Error("This device doesn't have your wallet key.");
-      const tx = Transaction.from(fromB64(d1.tx));
-      tx.partialSign(Keypair.fromSecretKey(bs58.decode(secret)));
-      // 3) Submit.
-      const r2 = await fetch("/api/wallet", {
+      // The connected external wallet signs; private keys remain inside Phantom/Solflare.
+      const refreshed = await signWithdrawal(d1.tx, amt, to.trim(), d1.feePayer);
+      const signed = refreshed.signedTransaction;
+      sessionStorage.setItem("lockrun.withdrawal", JSON.stringify({ intentId: refreshed.intentId, tx: signed, address: me.address }));
+      setPendingTransfer(true);
+      const r2 = await fetch("/api/withdrawals", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "submit", tx: toB64(tx.serialize()) }),
+        body: JSON.stringify({ action: "submit", intentId: refreshed.intentId, tx: signed }),
       });
       const d2 = await r2.json();
       if (!r2.ok) throw new Error(d2.error || "Cash out failed.");
+      sessionStorage.removeItem("lockrun.withdrawal");
+      setPendingTransfer(false);
       setMsg({ ok: true, text: `Sent ${money(amt)}.`, sig: d2.signature });
       speak(`Done! ${amt} dollars are on their way.`);
       setAmount("");
@@ -124,6 +124,21 @@ export default function EarningsPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function retryTransfer() {
+    setBusy(true); setMsg(null);
+    try {
+      const saved = JSON.parse(sessionStorage.getItem("lockrun.withdrawal") || "null");
+      if (!saved || saved.address !== me?.address) throw new Error("Reconnect the wallet that signed the pending transfer.");
+      const r = await fetch("/api/withdrawals", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "submit", ...saved }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Confirmation failed.");
+      sessionStorage.removeItem("lockrun.withdrawal"); setPendingTransfer(false);
+      setMsg({ ok: true, text: "Transfer confirmed.", sig: d.signature });
+      await load();
+    } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+    finally { setBusy(false); }
   }
 
   if (!ready) return null;
@@ -212,7 +227,7 @@ export default function EarningsPage() {
           <aside className="card">
             <h2>Cash out</h2>
             <p className="muted small" style={{ marginTop: 0 }}>
-              Send your winnings to any Solana wallet (like Phantom). Network fees are on us.
+              Send your winnings to any Solana wallet (like Phantom). A small network fee is paid from your wallet in SOL.
             </p>
             <div className="cash-bal">
               <span className="muted small">Available</span>
@@ -234,9 +249,10 @@ export default function EarningsPage() {
             </div>
             <label htmlFor="to">Send to (Solana address)</label>
             <input id="to" className="input" placeholder="Paste a wallet address" value={to} onChange={(e) => setTo(e.target.value)} />
-            <button className="btn primary block" style={{ marginTop: "1rem" }} disabled={busy || !balance} onClick={cashOut}>
+            <button className="btn primary block" style={{ marginTop: "1rem" }} disabled={busy || !balance || pendingTransfer} onClick={cashOut}>
               {busy ? "Sending…" : `Cash out ${amount ? money(Number(amount)) : balance ? money(balance) : ""}`}
             </button>
+            {pendingTransfer && <button className="btn block" disabled={busy} onClick={retryTransfer}>Retry transfer confirmation</button>}
             {msg && (
               <p className={msg.ok ? "result ok" : "err"}>
                 {msg.text}{" "}
@@ -252,7 +268,7 @@ export default function EarningsPage() {
                   {me.address.slice(0, 4)}…{me.address.slice(-4)} ↗
                 </a>
                 <br />
-                Coming next: cash out straight to your bank account.
+                Test USDC stays on Solana Devnet. This transfer does not convert it to cash.
               </p>
             )}
           </aside>
@@ -261,7 +277,7 @@ export default function EarningsPage() {
           <AdSlot />
         </div>
         <p className="foot">Hackathon demo · Solana devnet · test money only</p>
-        {!me && <NameGate onJoin={(n) => join(n)} />}
+        {!me && <NameGate onJoin={(n, wallet) => join(n, wallet)} />}
       </main>
     </AppShell>
   );

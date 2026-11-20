@@ -1,10 +1,12 @@
 "use client";
+import { useMe } from "@/lib/client";
 import { useState } from "react";
 import { Challenge, MAX_SPONSORS, SPONSOR_BONUSES, explorerTx, money } from "@/lib/config";
 import { SponsorMark } from "@/components/Logos";
 
 /** Lets a brand add bonus money to a challenge's pot. The bonus is locked in escrow on Solana. */
 export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live: boolean; onUpdated: (c: Challenge) => void }) {
+  const { me, deposit } = useMe();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
@@ -28,7 +30,8 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Couldn't add the sponsor.");
-      onUpdated(d.challenge);
+      const confirmed = await deposit(d);
+      onUpdated(confirmed.challenge);
       setOpen(false);
       setName("");
       setUrl("");
@@ -70,7 +73,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
       )}
 
       {live && !full && !open && (
-        <button className="btn block" onClick={() => setOpen(true)}>
+        <button className="btn block" disabled={!me} onClick={() => setOpen(true)}>
           Sponsor this challenge
         </button>
       )}
@@ -120,7 +123,7 @@ export default function SponsorBox({ c, live, onUpdated }: { c: Challenge; live:
           </button>
           <p className="muted small" style={{ margin: "0.5rem 0 0" }}>
             Your logo and ad message appear in Lock&amp;Run&apos;s ad spots while the challenge is live, and on the payout
-            screen of every runner who hits 100%. Demo mode: test dollars. If nobody hits 100%, the bonus goes back to you.
+            screen of every runner who hits 100%. Your connected wallet approves the test USDC bonus and pays network fees. If nobody hits 100%, the bonus returns to the wallet that funded it.
           </p>
         </div>
       )}

@@ -1,4 +1,5 @@
 "use client";
+import WalletStatus from "./WalletStatus";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -38,7 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!me) return;
     const check = () =>
-      fetch(`/api/shop?address=${me.address}`, { cache: "no-store" })
+      fetch("/api/shop", { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => setGold((d.orders || []).some((o: { itemId: string }) => o.itemId === "gold-name")))
         .catch(() => {});
@@ -66,16 +67,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     }
     // When this runner gets paid (on any page), show the Congratulations pop-up once per challenge.
     function checkForPayout(list: Challenge[]) {
-      const meRaw = localStorage.getItem("lockrun.me");
-      if (!meRaw) return;
-      const address = JSON.parse(meRaw).address as string;
+      if (!me) return;
+      const address = me.address;
       const seen = readCelebrated();
       for (const c of list) {
-        if (c.status !== "settled" || seen.includes(c.id)) continue;
+        if (c.status !== "settled" || seen.includes(`${address}:${c.id}`)) continue;
         if (c.settledAt && Date.now() - c.settledAt > 7 * 86400_000) continue; // only recent payouts
         const p = c.participants.find((x) => x.address === address);
         if (!p) continue;
-        localStorage.setItem(CELEBRATED, JSON.stringify([...seen, c.id]));
+        localStorage.setItem(CELEBRATED, JSON.stringify([...seen, `${address}:${c.id}`]));
         if ((p.payout || 0) <= 0) return; // nothing back: no pop-up
         const { payouts } = computePayouts(c);
         const mine = payouts.find((x) => x.address === address)!;
@@ -106,7 +106,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       window.removeEventListener("hashchange", onHash);
       window.removeEventListener("lockrun:refresh", refresh);
     };
-  }, []);
+  }, [me?.address]);
 
   const onHome = path === "/";
   const nav = [
@@ -149,6 +149,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <div className="muted small">Every deposit, payout and run proof is recorded on-chain.</div>
         </div>
         <div className="side-foot">
+          <WalletStatus />
           {me && (
             <div className="side-me">
               <span className="avatar">{me.name.charAt(0).toUpperCase()}</span>
@@ -168,6 +169,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Link href="/" className="brand">
             <span className="brand-dot" /> Lock&Run
           </Link>
+          <WalletStatus />
           {me && (
             <span className="me">
               {streak > 0 && <span className="me-streak">🔥{streak}</span>}

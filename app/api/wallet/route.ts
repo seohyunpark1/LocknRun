@@ -1,58 +1,27 @@
-import { NextResponse } from "next/server";
-import { PublicKey } from "@solana/web3.js";
-import { prepareWithdraw, submitWithdraw, usdcBalance } from "@/lib/solana-server";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const maxDuration = 30;
-
-const isAddress = (a: unknown) => {
-  try {
-    new PublicKey(String(a));
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-// GET /api/wallet?address=<wallet>  ->  { usdc }
+import { NextResponse } from 'next/server';
+import { authCookie, sessionToken, useNonce, walletSession, walletAuthFailure } from '@/lib/wallet-auth';
+import { kvSet, sharedStorageUnavailable } from '@/lib/store';
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
-  const address = new URL(req.url).searchParams.get("address");
-  if (!isAddress(address)) return NextResponse.json({ error: "Invalid address" }, { status: 400 });
-  return NextResponse.json({ usdc: await usdcBalance(address!) });
+  if (sharedStorageUnavailable()) return walletAuthFailure();
+  const id = sessionToken();
+  const message = `Sign in to Lock&Run\nOrigin: ${new URL(req.url).origin}\nNetwork: Solana Devnet\nNonce: ${id}\nThis signature proves wallet ownership. It does not transfer funds.`;
+  await kvSet(`nonce:${id}`, { message, expires: Date.now() + 300_000 });
+  return NextResponse.json({ id, message, address: await walletSession(req) });
 }
-
-const hits = new Map<string, number[]>();
-function limited(ip: string) {
-  const now = Date.now();
-  const recent = (hits.get(ip) || []).filter((t) => now - t < 60_000);
-  recent.push(now);
-  hits.set(ip, recent);
-  return recent.length > 6;
-}
-
-// POST /api/wallet  { action: "prepare", from, to, amount }  or  { action: "submit", tx }
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "local";
-  if (limited(ip)) return NextResponse.json({ error: "Slow down a little!" }, { status: 429 });
-  try {
-    if (body.action === "prepare") {
-      if (!isAddress(body.from) || !isAddress(body.to)) return NextResponse.json({ error: "That isn't a valid Solana address." }, { status: 400 });
-      if (body.from === body.to) return NextResponse.json({ error: "Send to a different wallet." }, { status: 400 });
-      const amount = Math.floor(Number(body.amount) * 100) / 100;
-      const balance = await usdcBalance(body.from);
-      if (!(amount > 0) || amount > balance) return NextResponse.json({ error: `You can cash out up to $${balance}.` }, { status: 400 });
-      return NextResponse.json({ tx: await prepareWithdraw(body.from, body.to, amount) });
-    }
-    if (body.action === "submit") {
-      if (typeof body.tx !== "string" || body.tx.length > 4000) return NextResponse.json({ error: "Invalid transaction" }, { status: 400 });
-      return NextResponse.json({ signature: await submitWithdraw(body.tx) });
-    }
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "Cash out failed";
-    console.error("wallet:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+  if (sharedStorageUnavailable()) return walletAuthFailure();
+  const b = await req.json().catch(() => ({}));
+  if (!await useNonce(String(b.id), String(b.address), String(b.signature))) return NextResponse.json({ error: 'Wallet signature invalid or expired.' }, { status: 401 });
+  const token = sessionToken();
+  await kvSet(`session:${token}`, { address: b.address, expires: Date.now() + 24 * 3600_000 });
+  const res = NextResponse.json({ address: b.address });
+  res.cookies.set(authCookie, token, { httpOnly: true, secure: new URL(req.url).protocol === 'https:', sameSite: 'lax', path: '/', maxAge: 86400 });
+  return res;
+}
+export async function DELETE() {
+  const res = NextResponse.json({ ok: true });
+  res.cookies.set(authCookie, '', { httpOnly: true, path: '/', maxAge: 0 });
+  return res;
 }

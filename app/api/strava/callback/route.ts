@@ -1,3 +1,4 @@
+import { walletSession } from "@/lib/wallet-auth";
 import { NextResponse } from "next/server";
 import { connect, readState } from "@/lib/strava";
 
@@ -12,6 +13,7 @@ export async function GET(req: Request) {
   const go = (status: string) => NextResponse.redirect(`${url.origin}${back}${back.includes("?") ? "&" : "?"}strava=${status}`);
   const code = url.searchParams.get("code");
   if (!state || !code || url.searchParams.get("error")) return go("cancelled");
+  if (await walletSession(req) !== state.address) return go("failed");
   try {
     await connect(state.address, code);
     return go("connected");

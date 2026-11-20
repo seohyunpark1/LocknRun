@@ -361,6 +361,14 @@ label { display: block; font-weight: 500; font-size: 0.85rem; color: var(--muted
 .partner b { font-size: 1rem; letter-spacing: -0.01em; }
 .partner span { font-size: 0.8rem; color: var(--muted); }
 
+/* Wallet controls stay accessible within both shell layouts. */
+.wallet-status { min-width: 0; max-width: 21.25rem; text-align: right; overflow-wrap: anywhere; }
+.wallet-status .btn { max-width: 100%; white-space: normal; }
+.topbar { gap: .75rem; flex-wrap: wrap; }
+.topbar .brand { flex-shrink: 0; }
+.topbar .wallet-status { flex: 1; }
+.side-foot .wallet-status { text-align: left; max-width: 100%; }
+.side-amt, .stat-num, .pot-amt { overflow-wrap: anywhere; }
 /* Earnings page */
 .stats-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 @media (min-width: 1024px) { .stats-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } }

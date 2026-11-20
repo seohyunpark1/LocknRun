@@ -68,10 +68,10 @@ export type Participant = {
   paySig?: string; // escrow -> runner
 };
 
-export type ChallengeStatus = "active" | "settling" | "settled";
+export type ChallengeStatus = "draft" | "active" | "settling" | "settled";
 
 /** A brand that added bonus money to a challenge's pot (split among finishers). */
-export type Sponsor = { name: string; amount: number; url?: string; at: number; sig: string; logo?: boolean; tagline?: string };
+export type Sponsor = { address?: string; refundSig?: string; name: string; amount: number; url?: string; at: number; sig: string; logo?: boolean; tagline?: string };
 export const MAX_LOGO_BYTES = 150_000; // sponsor logos are shrunk to 256px in the browser first
 export const sponsorLogoUrl = (challengeId: string, index: number) => `/api/sponsor-logo/${challengeId}/${index}`;
 
@@ -107,6 +107,7 @@ export type Challenge = {
   creatorName: string;
   status: ChallengeStatus;
   participants: Participant[];
+  pendingDeposits?: string[];
   sponsors?: Sponsor[];
   sponsorRefundSig?: string; // bonus returned to sponsors when nobody finished
   settledAt?: number;
@@ -140,7 +141,7 @@ export function clean(raw: unknown, max: number, fallback = ""): string {
 }
 
 export function money(n: number) {
-  return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`;
+  return `$${n.toLocaleString("en-US", { maximumFractionDigits: 6 })} USDC`;
 }
 
 export function pace(secPerKm: number) {
