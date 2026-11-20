@@ -158,3 +158,15 @@ they've won, and that money goes back to the brands that funded the bonus. Lock&
   "Powered by" strip, the sidebar and the payout pop-up. Each logo is the company's own site icon, loaded from its
   domain; drop official files into `public/partners/` for sharper logos (see the README there).
 
+
+## Streaks + weekly ranking
+
+`/ranking` keeps runners coming back every day:
+
+- **Streak:** days in a row with at least one counted run (still alive if you ran yesterday and haven't run yet
+  today), with this week's Mon–Sun check marks and your best-ever streak. Your streak also shows next to your name
+  (sidebar and phone top bar).
+- **Weekly ranking:** every runner ranked by counted km this week (then runs, then streak). Resets every Monday.
+- Only runs that count toward a challenge (distance met, human pace, photo or Strava proof) are used, so nobody
+  can pad the ranking. Computed from challenge data in `lib/streaks.ts`.
+

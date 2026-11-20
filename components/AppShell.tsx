@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Challenge, explorerAddress, money, partnerByName, partnerLogoSources } from "@/lib/config";
 import { computePayouts } from "@/lib/settle";
+import { weeklyRanking } from "@/lib/streaks";
 import { speak, useMe } from "@/lib/client";
 import Celebration, { Win } from "./Celebration";
 import { PartnerLogo } from "./Logos";
@@ -32,6 +33,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [escrow, setEscrow] = useState<Escrow>({ address: null, balance: null });
   const [hash, setHash] = useState("");
   const [win, setWin] = useState<Win | null>(null);
+  const [streak, setStreak] = useState(0); // days in a row with a counted run
   const [gold, setGold] = useState(false); // owns the "Gold runner badge" from the Shop
 
   useEffect(() => {
@@ -55,6 +57,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         const d = await (await fetch("/api/challenges", { cache: "no-store" })).json();
         setEscrow(d.escrow);
         checkForPayout(d.challenges || []);
+        const meRaw = localStorage.getItem("lockrun.me");
+        if (meRaw) {
+          const addr = JSON.parse(meRaw).address;
+          setStreak(weeklyRanking(d.challenges || [], Date.now()).find((r) => r.address === addr)?.streak || 0);
+        }
       } catch {}
       if (!stop) timer = setTimeout(load, 8000);
     }
@@ -106,6 +113,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Challenges", icon: <IconList />, on: onHome && hash !== "#new" && hash !== "#how" },
     { href: "/#new", label: "New challenge", short: "New", icon: <IconPlus />, on: onHome && hash === "#new" },
     { href: "/earnings", label: "My earnings", short: "Earnings", icon: <IconWallet />, on: path === "/earnings" },
+    { href: "/ranking", label: "Ranking", icon: <IconTrophy />, on: path === "/ranking" },
     { href: "/#how", label: "How it works", short: "How", icon: <IconInfo />, on: onHome && hash === "#how" },
   ];
 
@@ -146,7 +154,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               <span className="avatar">{me.name.charAt(0).toUpperCase()}</span>
               <div style={{ minWidth: 0 }}>
                 <div className="side-me-name">{me.name}{gold && <span className="gold-star" title="Gold runner">★</span>}</div>
-                <div className="muted small">{gold ? "Gold runner" : "Runner"}</div>
+                <div className="muted small">{gold ? "Gold runner" : "Runner"}{streak > 0 && <> · <Link href="/ranking" className="side-streak">🔥 {streak}-day streak</Link></>}</div>
               </div>
             </div>
           )}
@@ -161,7 +169,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="brand-dot" /> Lock&Run
           </Link>
           <WalletStatus />
-          {me && <span className="me">{me.name}{gold && <span className="gold-star">★</span>}</span>}
+          {me && (
+            <span className="me">
+              {streak > 0 && <span className="me-streak">🔥{streak}</span>}
+              {me.name}
+              {gold && <span className="gold-star">★</span>}
+            </span>
+          )}
         </header>
 
         {children}
@@ -170,7 +184,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* ---------- Phone version: bottom tab bar ---------- */}
         <nav className="tabbar">
-          {[nav[0], nav[2], nav[1], nav[3]].map((n) => ( /* "New" sits in the middle on phones */
+          {[nav[0], nav[2], nav[1], nav[3], nav[4]].map((n) => ( /* phone: New in the middle; "How it works" stays on the home page */
             <Link key={n.href} href={n.href} className={`tab ${n.on ? "on" : ""} ${n.short === "New" ? "tab-new" : ""}`} onClick={() => setHash(n.href.split("#")[1] ? "#" + n.href.split("#")[1] : "")}>
               {n.icon}
               <span>{n.short || n.label}</span>
@@ -202,6 +216,13 @@ function IconInfo() {
     <svg {...svg} aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
+    </svg>
+  );
+}
+function IconTrophy() {
+  return (
+    <svg {...svg} aria-hidden>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0V4zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4" />
     </svg>
   );
 }
