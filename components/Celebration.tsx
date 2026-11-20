@@ -116,6 +116,9 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
           <Link href="/earnings" className="btn primary block" onClick={onClose}>
             See my earnings
           </Link>
+          <Link href="/shop" className="btn block" onClick={onClose}>
+            Spend it in the Shop
+          </Link>
           <button className="btn block" onClick={onClose}>
             Close
           </button>

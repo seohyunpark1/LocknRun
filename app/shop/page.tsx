@@ -1,8 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Keypair, Transaction } from "@solana/web3.js";
-import bs58 from "bs58";
 import AppShell from "@/components/AppShell";
 import NameGate from "@/components/NameGate";
 import AdSlot from "@/components/AdSlot";
@@ -10,14 +8,12 @@ import { explorerTx, money } from "@/lib/config";
 import { Order, ShopItem, shopItem } from "@/lib/shop";
 import { useMe } from "@/lib/client";
 
-const toB64 = (bytes: Uint8Array) => btoa(String.fromCharCode(...Array.from(bytes)));
-const fromB64 = (s: string) => Uint8Array.from(atob(s), (ch) => ch.charCodeAt(0));
-
 type Filter = "all" | "sponsor" | "app";
 
 /** Shop: spend what you won (Challengers-style) on sponsor rewards and Lock&Run items. */
 export default function ShopPage() {
-  const { me, ready, join } = useMe();
+  const { me, ready, join, signTransfer } = useMe();
+  const [store, setStore] = useState("");
   const [items, setItems] = useState<ShopItem[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [balance, setBalance] = useState<number | null>(null);
@@ -31,10 +27,11 @@ export default function ShopPage() {
     if (!me) return;
     try {
       const [s, w] = await Promise.all([
-        fetch(`/api/shop?address=${me.address}`, { cache: "no-store" }).then((r) => r.json()),
-        fetch(`/api/wallet?address=${me.address}`, { cache: "no-store" }).then((r) => r.json()),
+        fetch("/api/shop", { cache: "no-store" }).then((r) => r.json()),
+        fetch("/api/withdrawals", { cache: "no-store" }).then((r) => r.json()),
       ]);
       setItems(s.items || []);
+      setStore(s.store || "");
       setOrders((s.orders || []).sort((a: Order, b: Order) => (b.paidAt || 0) - (a.paidAt || 0)));
       setBalance(typeof w.usdc === "number" ? w.usdc : null);
     } catch {}
@@ -49,24 +46,23 @@ export default function ShopPage() {
     setErr("");
     setBusy(true);
     try {
-      // 1) Server builds the payment (price from its own catalog) and signs only as fee payer.
+      if (!store) throw new Error("Shop is still loading. Try again.");
+      if (!window.confirm(`Buy "${item.name}" for ${item.price} test USDC\nFrom: ${me.address}\nTo (Lock&Run store wallet): ${store}\nNetwork: Solana Devnet\nNetwork fee: paid from your wallet in SOL\nApprove this payment in your wallet?`)) throw new Error("Purchase cancelled.");
+      // 1) Server builds the payment (price from its own catalog); you are the only signer and fee payer.
       const r1 = await fetch("/api/shop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "prepare", address: me.address, itemId: item.id }),
+        body: JSON.stringify({ action: "prepare", itemId: item.id }),
       });
       const d1 = await r1.json();
       if (!r1.ok) throw new Error(d1.error || "Couldn't start the purchase.");
-      // 2) You approve it with your own key, on this device.
-      const secret = localStorage.getItem("lockrun.secret");
-      if (!secret) throw new Error("This device doesn't have your wallet key.");
-      const tx = Transaction.from(fromB64(d1.tx));
-      tx.partialSign(Keypair.fromSecretKey(bs58.decode(secret)));
+      // 2) Your external wallet signs exactly the bytes checked here; private keys never leave it.
+      const signed = await signTransfer(d1.tx, { from: me.address, to: store, amount: item.price, feePayer: me.address });
       // 3) Submit and get your code.
       const r2 = await fetch("/api/shop", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "submit", address: me.address, orderId: d1.orderId, tx: toB64(tx.serialize()) }),
+        body: JSON.stringify({ action: "submit", orderId: d1.orderId, tx: signed }),
       });
       const d2 = await r2.json();
       if (!r2.ok) throw new Error(d2.error || "Payment failed.");
@@ -195,7 +191,7 @@ export default function ShopPage() {
               <button className="btn block" style={{ marginTop: "0.5rem" }} disabled={busy} onClick={() => setPick(null)}>
                 Cancel
               </button>
-              <p className="muted small" style={{ marginBottom: 0 }}>Paid in USDC on Solana. Network fees are on us.</p>
+              <p className="muted small" style={{ marginBottom: 0 }}>Paid in USDC on Solana. A small network fee is paid from your wallet in SOL.</p>
             </div>
           </div>
         )}

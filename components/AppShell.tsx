@@ -39,7 +39,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!me) return;
     const check = () =>
-      fetch(`/api/shop?address=${me.address}`, { cache: "no-store" })
+      fetch("/api/shop", { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => setGold((d.orders || []).some((o: { itemId: string }) => o.itemId === "gold-name")))
         .catch(() => {});
@@ -113,6 +113,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Challenges", icon: <IconList />, on: onHome && hash !== "#new" && hash !== "#how" },
     { href: "/#new", label: "New challenge", short: "New", icon: <IconPlus />, on: onHome && hash === "#new" },
     { href: "/earnings", label: "My earnings", short: "Earnings", icon: <IconWallet />, on: path === "/earnings" },
+    { href: "/shop", label: "Shop", icon: <IconBag />, on: path === "/shop" },
     { href: "/ranking", label: "Ranking", icon: <IconTrophy />, on: path === "/ranking" },
     { href: "/#how", label: "How it works", short: "How", icon: <IconInfo />, on: onHome && hash === "#how" },
   ];

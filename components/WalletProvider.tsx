@@ -16,6 +16,7 @@ const Context = createContext<{
   disconnect: () => Promise<void>;
   deposit: (prepared: Prepared) => Promise<any>;
   retryDeposit: () => Promise<any>;
+  signTransfer: (transaction: string, expected: { from: string; to: string; amount: number; feePayer: string }) => Promise<string>;
   signWithdrawal: (transaction: string, amount: number, to: string, feePayer: string) => Promise<{ signedTransaction: string; intentId: string }>;
   pending: boolean;
 }>(null!);
@@ -119,5 +120,5 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     setPending(true);
     return retryDeposit();
   }
-  return <Context.Provider value={{ me, ready, wallets, join, disconnect, deposit, retryDeposit, pending, signWithdrawal }}>{children}</Context.Provider>;
+  return <Context.Provider value={{ me, ready, wallets, join, disconnect, deposit, retryDeposit, pending, signWithdrawal, signTransfer: signReviewedTransfer }}>{children}</Context.Provider>;
 }

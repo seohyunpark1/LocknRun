@@ -2,7 +2,7 @@
 import "server-only";
 import { assertDevnet } from "./solana-network";
 import { buildSimulatedTransaction } from "./wallet-simulation";
-import { allSignaturesValid } from "./transaction-signatures";
+import { allSignaturesValid, hasValidSignature } from "./transaction-signatures";
 import { kvGet, kvSet } from "./store";
 import {
   ComputeBudgetProgram,
@@ -129,29 +129,36 @@ export function storeAddress() {
   return sponsor().publicKey.toBase58();
 }
 
-/** Shop payment, step 1: same as cash out, but to the store wallet with an order memo. Returns tx + its exact message. */
+/** Shop payment, step 1: the runner is the only signer and fee payer; nothing is pre-signed. */
 export async function prepareStorePayment(from: string, amountUsd: number, orderId: string) {
-  const payer = sponsor();
-  const fromKey = new PublicKey(from);
+  await assertDevnet(connection);
+  const fromKey = new PublicKey(from), storeKey = new PublicKey(storeAddress());
+  const storeAta = usdcAccount(storeKey);
   const raw = BigInt(Math.round(amountUsd * 10 ** USDC_DECIMALS));
-  const tx = new Transaction().add(
-    createTransferCheckedInstruction(usdcAccount(fromKey), mint, usdcAccount(payer.publicKey), fromKey, raw, USDC_DECIMALS),
+  const lifetime = await connection.getLatestBlockhash('confirmed');
+  const { tx, simulation } = await buildSimulatedTransaction(fromKey, [
+    createAssociatedTokenAccountIdempotentInstruction(fromKey, storeAta, storeKey, mint),
+    createTransferCheckedInstruction(usdcAccount(fromKey), mint, storeAta, fromKey, raw, USDC_DECIMALS),
     new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|shop|${orderId}`, "utf8") })
-  );
-  tx.feePayer = payer.publicKey;
-  tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
-  tx.partialSign(payer);
-  return { tx: tx.serialize({ requireAllSignatures: false }).toString("base64"), message: tx.serializeMessage().toString("base64") };
+  ], lifetime.blockhash);
+  if (simulation.value.err) throw new Error("Payment simulation failed. Check that your wallet has Devnet SOL for fees and enough Devnet USDC.");
+  return { tx: Buffer.from(tx.serialize()).toString("base64"), message: Buffer.from(tx.message.serialize()).toString("base64"), feePayer: from };
 }
 
-/** Shop payment, step 2: only the exact transaction prepared for this order is accepted. */
-export async function submitStorePayment(base64Tx: string, expectedMessage: string) {
-  const tx = Transaction.from(Buffer.from(base64Tx, "base64"));
-  if (tx.serializeMessage().toString("base64") !== expectedMessage || !tx.verifySignatures())
+/** Shop payment, step 2: only the exact transaction prepared for this order, signed by that runner, is accepted. */
+export async function submitStorePayment(base64Tx: string, expectedMessage: string, address: string) {
+  await assertDevnet(connection);
+  const tx = VersionedTransaction.deserialize(Buffer.from(base64Tx, "base64"));
+  if (Buffer.from(tx.message.serialize()).toString("base64") !== expectedMessage || tx.message.header.numRequiredSignatures !== 1 || !hasValidSignature(tx, address))
     throw new Error("That payment doesn't match your order.");
-  const sig = await connection.sendRawTransaction(tx.serialize());
-  await connection.confirmTransaction(sig, "confirmed");
-  return sig;
+  const signature = bs58.encode(tx.signatures[0]);
+  const status = (await connection.getSignatureStatuses([signature], { searchTransactionHistory: true })).value[0];
+  if (status?.err) throw new Error("Payment failed on Solana.");
+  if (status && ["confirmed", "finalized"].includes(status.confirmationStatus || "")) return signature;
+  await connection.sendRawTransaction(tx.serialize(), { skipPreflight: false, preflightCommitment: "confirmed" });
+  const result = await connection.confirmTransaction(signature, "confirmed");
+  if (result.value.err) throw new Error("Payment failed on Solana.");
+  return signature;
 }
 
 /** Cash out, step 2: submit the transaction once the runner's browser has signed it. */
