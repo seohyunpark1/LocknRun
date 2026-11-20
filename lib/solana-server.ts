@@ -120,6 +120,36 @@ export async function prepareWithdraw(from: string, to: string, amountUsd: numbe
   return tx.serialize({ requireAllSignatures: false }).toString("base64");
 }
 
+/** Shop: the store wallet (the sponsor/treasury wallet in this demo) that receives payments. */
+export function storeAddress() {
+  return sponsor().publicKey.toBase58();
+}
+
+/** Shop payment, step 1: same as cash out, but to the store wallet with an order memo. Returns tx + its exact message. */
+export async function prepareStorePayment(from: string, amountUsd: number, orderId: string) {
+  const payer = sponsor();
+  const fromKey = new PublicKey(from);
+  const raw = BigInt(Math.round(amountUsd * 10 ** USDC_DECIMALS));
+  const tx = new Transaction().add(
+    createTransferCheckedInstruction(usdcAccount(fromKey), mint, usdcAccount(payer.publicKey), fromKey, raw, USDC_DECIMALS),
+    new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|shop|${orderId}`, "utf8") })
+  );
+  tx.feePayer = payer.publicKey;
+  tx.recentBlockhash = (await connection.getLatestBlockhash("confirmed")).blockhash;
+  tx.partialSign(payer);
+  return { tx: tx.serialize({ requireAllSignatures: false }).toString("base64"), message: tx.serializeMessage().toString("base64") };
+}
+
+/** Shop payment, step 2: only the exact transaction prepared for this order is accepted. */
+export async function submitStorePayment(base64Tx: string, expectedMessage: string) {
+  const tx = Transaction.from(Buffer.from(base64Tx, "base64"));
+  if (tx.serializeMessage().toString("base64") !== expectedMessage || !tx.verifySignatures())
+    throw new Error("That payment doesn't match your order.");
+  const sig = await connection.sendRawTransaction(tx.serialize());
+  await connection.confirmTransaction(sig, "confirmed");
+  return sig;
+}
+
 /** Cash out, step 2: submit the transaction once the runner's browser has signed it. */
 export async function submitWithdraw(base64Tx: string) {
   const tx = Transaction.from(Buffer.from(base64Tx, "base64"));

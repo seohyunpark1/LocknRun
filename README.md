@@ -136,12 +136,30 @@ bonuses earned (with the sponsor's logo), money **locked in live challenges**, a
 
 **Congratulations pop-up:** when a challenge pays out, the runner sees a full-screen "Congratulations, you earned $X"
 card on whatever page they're on, led by the top sponsor's logo ("Presented by …"), with confetti, a breakdown (deposit back, quitters' share, sponsor bonus with the
-sponsor's logo), "Paid out on Solana" with the receipt, and a voice announcement. It shows once per challenge.
+sponsor's logo), "Paid out on Solana" with the receipt, and a "Spend it in the Shop" button. It shows once per challenge.
 
 **Cash out:** runners can send their USDC to any Solana wallet (e.g. Phantom). The server builds the transfer and signs
 only as the **fee payer** (so runners need no SOL); the runner's browser adds its own signature, so only the runner
 can move their money. The server only submits transactions it built (fee payer + token/memo instructions, valid
 signatures). Next step: cash out straight to a bank account through an off-ramp.
+
+## Shop: spend what you won
+
+Like Challengers' reward store, runners can spend their winnings inside the app (`/shop`, in the sidebar and the
+phone tab bar):
+
+- **Sponsor rewards:** shoe discounts, gift cards, energy gels, socks (demo brands: Peak Shoes, Austin Running Co.)
+- **Lock&Run items:** a gold runner badge (shows a ★ next to your name) and a running cap
+
+**How paying works:** the server builds a USDC transfer from the runner's wallet to the Lock&Run store wallet with a
+memo `LockRun|shop|<orderId>`, signs only as fee payer, and remembers the exact transaction. The runner's browser
+signs it with their own key. The server only accepts **that exact transaction** for that order, so a runner can't
+change the price and nobody else can spend their money. The price always comes from the server's catalog
+(`lib/shop.ts`). After payment the runner gets a **coupon code** (e.g. `ARC-4352-5419`), saved under **My rewards**
+with the Solana receipt.
+
+**Why it matters for the business:** sponsors don't just pay for logos. They sell products to runners right after
+they've won, and that money goes back to the brands that funded the bonus. Lock&Run can take a cut of each sale.
 
 ## Sponsor and partner logos
 
@@ -226,6 +244,9 @@ app/api/strava/*                Strava connect / callback / status / runs
 app/api/photos/[runId]          Serves run photos
 app/earnings/page.tsx           My earnings: balance, payouts, cash out
 app/api/wallet/route.ts         Balance + cash-out (prepare / submit)
+app/shop/page.tsx               Shop: rewards to buy with winnings, My rewards (codes)
+app/api/shop/route.ts           Shop catalog, orders, payment (prepare / submit)
+lib/shop.ts                     Shop items and prices
 app/api/sponsor-logo/...        Serves sponsor logos
 components/AppShell.tsx         Web sidebar / phone top bar + tab bar
 components/SponsorBox.tsx       Sponsor a challenge (bonus + logo)

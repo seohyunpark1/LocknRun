@@ -256,7 +256,7 @@ label { display: block; font-weight: 500; font-size: 0.85rem; color: var(--muted
   }
   .wrap { padding-top: 0.75rem; padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
   .tabbar {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(4, 1fr);
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: grid; grid-template-columns: repeat(5, 1fr);
     padding: 0.4rem calc(0.5rem + env(safe-area-inset-right)) calc(0.4rem + env(safe-area-inset-bottom)) calc(0.5rem + env(safe-area-inset-left));
     background: rgba(255, 255, 255, .9); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-top: 1px solid var(--line);
   }
@@ -487,3 +487,33 @@ label { display: block; font-weight: 500; font-size: 0.85rem; color: var(--muted
 .tracker { position: relative; }
 .voice-toggle { display: block; margin: 0.15rem 0 0.25rem auto; font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.6rem; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--muted); }
 .voice-toggle.on { background: #dcfce7; border-color: #86d39b; color: var(--green-dark); }
+
+/* ---------- Shop ---------- */
+.shop-bal { display: flex; align-items: center; justify-content: space-between; gap: 1rem; background: var(--green-grad); color: #fff; border-radius: var(--radius); padding: 1rem 1.2rem; margin: clamp(1.25rem, 4vw, 2rem) 0; box-shadow: 0 14px 30px -18px rgba(22, 163, 74, .8); }
+.shop-bal .btn { background: rgba(255, 255, 255, .92); border-color: transparent; color: var(--green-dark); }
+.shop-filter { margin-bottom: 1rem; }
+.shop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr)); gap: clamp(0.6rem, 2vw, 0.9rem); }
+@media (max-width: 480px) { .shop-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.shop-item { display: flex; flex-direction: column; align-items: flex-start; gap: 0.3rem; text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: var(--radius); padding: 0.85rem; box-shadow: var(--card-shadow); cursor: pointer; transition: transform .12s, border-color .12s; font: inherit; color: inherit; min-width: 0; }
+.shop-item:hover { transform: translateY(-2px); border-color: #a7dcb8; }
+.shop-icon { width: 100%; aspect-ratio: 4 / 3; border-radius: 0.6rem; display: grid; place-items: center; font-size: clamp(2rem, 1.5rem + 2vw, 2.6rem); margin-bottom: 0.35rem; }
+.shop-icon.sm { width: 2.6rem; height: 2.6rem; aspect-ratio: auto; font-size: 1.3rem; margin: 0; flex-shrink: 0; }
+.shop-icon.lg { width: 5rem; height: 5rem; aspect-ratio: auto; font-size: 2.6rem; margin: 0 auto 0.6rem; }
+.shop-brand { font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.shop-name { font-size: 0.95rem; font-weight: 600; line-height: 1.25; }
+.shop-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.4rem; width: 100%; margin-top: auto; padding-top: 0.4rem; flex-wrap: wrap; }
+.shop-price { font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.shop-buy { font-size: 0.8rem; font-weight: 600; color: #fff; background: var(--green-grad); padding: 0.25rem 0.7rem; border-radius: 999px; }
+.shop-owned { font-size: 0.75rem; font-weight: 600; color: var(--green-dark); background: #dcfce7; padding: 0.2rem 0.6rem; border-radius: 999px; }
+.shop-confirm { text-align: center; }
+.confirm-rows { border-top: 1px solid var(--line); margin: 0.75rem 0 1rem; }
+.confirm-rows > div { display: flex; justify-content: space-between; padding: 0.55rem 0; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+.confirm-rows span { color: var(--muted); }
+.reward-list { display: flex; flex-direction: column; }
+.reward { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
+.reward > div { flex: 1; }
+.reward-name { font-weight: 600; font-size: 0.9rem; }
+.reward-code { display: inline-block; margin-top: 0.35rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; background: #f0fdf4; border: 1px dashed #86efac; color: var(--green-dark); padding: 0.2rem 0.5rem; border-radius: 0.4rem; }
+.reward-code.big { display: block; font-size: 1.25rem; padding: 0.7rem; margin-top: 0.4rem; }
+.gold-star { color: #eab308; margin-left: 0.2rem; }
+.shop-link { margin-top: 0.75rem; }
