@@ -455,3 +455,47 @@ test('very fast runs wait for review, hold the day slot, hold settlement, and on
   assert.equal(done!.participants[0].runs[0].counts, true);
   delete process.env.VERIFIER_KEY;
 });
+
+test('fraction mode keeps the 100% / 85% / partial tiers; pool mode is the default', async () => {
+  const { computePayouts } = await import('../lib/settle');
+  // 3 runners x $20, $75 bonus, 2 runs required: Maria 2/2, Daniel 1/2, Kevin 0/2 -> Maria gets $125.
+  const c = { ...room({}, [true, false, false], 20, 0), rewardMode: 'fraction' as const, sponsors: [{ name: 's', amount: 75, at: 0, sig: 'x' }] };
+  c.participants[2].runs = [];
+  const r = computePayouts(c);
+  assert.deepEqual(r.payouts.map(p => p.amount), [125, 10, 0]);
+  assert.deepEqual(r.payouts.map(p => p.tier), ['finished', 'partial', 'partial']);
+  assert.equal(r.fee, 0);
+  // The same results under the default pool mode: Daniel and Kevin forfeit.
+  const pool = computePayouts({ ...c, rewardMode: undefined });
+  assert.deepEqual(pool.payouts.map(p => p.tier), ['finished', 'forfeited', 'forfeited']);
+  assert.equal(pool.payouts[0].amount, 20 * 3 + 75 - 2 * 20 * 0.05);
+});
+
+test('private challenges are hidden from strangers and the list, and need the invite link to join', async () => {
+  const { insertChallenge, kvSet } = await import('../lib/store');
+  const { GET: list } = await import('../app/api/challenges/route');
+  const { GET, POST } = await import('../app/api/challenges/[id]/route');
+  const host = Keypair.generate(), friend = Keypair.generate(), stranger = Keypair.generate();
+  const cookie = async (kp: Keypair, tok: string) => { await kvSet(`session:${tok}`, { address: kp.publicKey.toBase58(), expires: Date.now() + 60_000 }); return `lockrun_session=${tok}`; };
+  const hostCookie = await cookie(host, '4'.repeat(64)), strangerCookie = await cookie(stranger, '5'.repeat(64)), friendCookie = await cookie(friend, '6'.repeat(64));
+  const now = Date.now();
+  const base = { title: 'Priv', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: now, endsAt: now + 86_400_000, creatorName: 'H', status: 'active' as const, participants: [{ name: 'H', address: host.publicKey.toBase58(), joinedAt: now, joinSig: 'j', runs: [] }] };
+  await insertChallenge({ ...base, id: 'priv', visibility: 'private', inviteCode: 'c0ffee'.repeat(4) });
+  await insertChallenge({ ...base, id: 'pub', visibility: 'public' });
+  const get = (id: string, ck?: string, q = '') => GET(new Request(`https://lockrun.test/api/challenges/${id}${q}`, { headers: ck ? { cookie: ck } : {} }), { params: { id } });
+  assert.equal((await get('priv')).status, 404);
+  assert.equal((await get('priv', strangerCookie)).status, 404);
+  const viaInvite = await get('priv', strangerCookie, '?invite=' + 'c0ffee'.repeat(4));
+  assert.equal(viaInvite.status, 200);
+  assert.equal((await viaInvite.json()).challenge.inviteCode, undefined, 'the code is not echoed to non-members');
+  assert.equal((await (await get('priv', hostCookie)).json()).challenge.inviteCode, 'c0ffee'.repeat(4), 'members can share it');
+  assert.equal((await get('pub')).status, 200);
+  const ids = async (ck?: string) => (await (await list(new Request('https://lockrun.test/api/challenges', { headers: ck ? { cookie: ck } : {} }))).json()).challenges.map((c: { id: string }) => c.id);
+  assert.ok(!(await ids()).includes('priv') && (await ids()).includes('pub'));
+  assert.ok(!(await ids(strangerCookie)).includes('priv'));
+  assert.ok((await ids(hostCookie)).includes('priv'));
+  const act = (ck: string, body: object) => POST(new Request('https://lockrun.test/api/challenges/priv', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: ck }, body: JSON.stringify(body) }), { params: { id: 'priv' } });
+  assert.equal((await act(friendCookie, { action: 'join', name: 'F' })).status, 404, 'no invite, no join');
+  assert.equal((await act(friendCookie, { action: 'join', name: 'F', invite: 'wrong'.repeat(5) })).status, 404);
+  assert.equal((await act(strangerCookie, { action: 'settle' })).status, 404, 'strangers cannot act on a private challenge');
+});

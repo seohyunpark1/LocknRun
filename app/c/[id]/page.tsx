@@ -11,7 +11,7 @@ import AdSlot from "@/components/AdSlot";
 import { SponsorMark } from "@/components/Logos";
 import StravaImport from "@/components/StravaImport";
 import { isMobileDevice } from "@/lib/device";
-import { Challenge, Run, bonusOf, countedRuns, explorerTx, isFinisher, money, pace, potOf, runStatus } from "@/lib/config";
+import { Challenge, Run, rewardModeOf, bonusOf, countedRuns, explorerTx, isFinisher, money, pace, potOf, runStatus } from "@/lib/config";
 import { PLATFORM_FEE_RATE, computePayouts } from "@/lib/settle";
 import { timeLeft, useMe, useNow } from "@/lib/client";
 
@@ -25,15 +25,17 @@ export default function ChallengePage() {
   const [err, setErr] = useState("");
   const [copied, setCopied] = useState(false);
   const [phone, setPhone] = useState(false);
+  const [invite, setInvite] = useState("");
+  useEffect(() => setInvite(new URLSearchParams(window.location.search).get("invite") || ""), []);
   useEffect(() => setPhone(isMobileDevice()), []);
   const [viewRun, setViewRun] = useState<{ run: Run; name: string } | null>(null);
 
   const load = useCallback(async () => {
-    const r = await fetch(`/api/challenges/${id}`, { cache: "no-store" });
+    const r = await fetch(`/api/challenges/${id}${invite ? `?invite=${encodeURIComponent(invite)}` : ""}`, { cache: "no-store" });
     if (r.status === 404) return setNotFound(true);
     const d = await r.json();
     if (d.challenge) setC(d.challenge);
-  }, [id]);
+  }, [id, invite]);
 
   useEffect(() => {
     let stop = false;
@@ -57,7 +59,7 @@ export default function ChallengePage() {
       const r = await fetch(`/api/challenges/${id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action, name: me.name, address: me.address }),
+        body: JSON.stringify({ action, name: me.name, address: me.address, invite }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Something went wrong");
@@ -131,6 +133,7 @@ export default function ChallengePage() {
           <span className={`status ${live ? "st-open" : c.status === "settled" ? "st-done" : "st-claimed"}`}>
             {live ? timeLeft(c.endsAt, now) : c.status === "settled" ? "Paid out" : "Ended"}
           </span>
+          {c.visibility === "private" && <span className="status st-claimed" style={{ marginLeft: 8 }}>Private · invite only</span>}
           <h1 style={{ marginTop: 10 }}>{c.title}</h1>
           <p className="lede">
             Run <b>{c.goalKm} km</b>, <b>{c.runsRequired} time{c.runsRequired > 1 ? "s" : ""}</b> before the clock runs out.
@@ -156,12 +159,13 @@ export default function ChallengePage() {
           <button
             className="btn ghost"
             onClick={() => {
-              navigator.clipboard?.writeText(window.location.href.split("?")[0]);
+              const link = window.location.href.split("?")[0] + (c.inviteCode ? `?invite=${c.inviteCode}` : "");
+              navigator.clipboard?.writeText(link);
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
             }}
           >
-            {copied ? "Link copied" : "Copy invite link"}
+            {copied ? "Link copied" : c.visibility === "private" ? "Copy private invite link" : "Copy invite link"}
           </button>
         </div>
       </div>
@@ -174,8 +178,8 @@ export default function ChallengePage() {
               <h2>Join this challenge</h2>
               <p className="muted" style={{ marginTop: 0 }}>
                 Stake {money(c.deposit)}. Finish {c.runsRequired}× {c.goalKm} km (one run per day, days reset at midnight {c.timeZone || "UTC"}) and you get it back
-                {c.participants.length > 0 ? ", plus a share of what anyone who doesn't finish forfeits" : ""}
-                {bonus > 0 ? ` and the ${money(bonus)} sponsor bonus` : ""}. If no one finishes, every stake is refunded.
+                {c.participants.length > 0 ? (rewardModeOf(c) === "fraction" ? ", plus a prize from what others don't get back" : ", plus a share of what anyone who doesn't finish forfeits") : ""}
+                {bonus > 0 ? ` and the ${money(bonus)} sponsor bonus` : ""}.{rewardModeOf(c) === "fraction" ? " Finish at least 85% to keep your whole stake." : " If no one finishes, every stake is refunded."}
               </p>
               <button className="btn primary block" disabled={!!busy || !me} onClick={() => act("join")}>
                 {busy === "join" ? "Locking your stake…" : `Join & lock ${money(c.deposit)}`}
@@ -286,6 +290,44 @@ export default function ChallengePage() {
 
         <div className="side-col">
         <aside className="soft">
+          {rewardModeOf(c) === "fraction" ? (
+            <>
+          <h2>Rewards</h2>
+          <p className="small" style={{ lineHeight: 1.5, marginTop: 0 }}>
+            Everyone stakes <b>{money(c.deposit)}</b>. What you get back depends on how many of your {c.runsRequired} check-ins you complete:
+          </p>
+          <div className="tiers">
+            <div className="tier-row full">
+              <span className="tier-pill tier-full">100%</span>
+              <div>
+                <b>Stake back + prize</b>
+                <div className="muted small">
+                  {prizeNow > 0 ? `Prize right now: +${money(prizeNow)} each` : "Prize grows as others miss runs or sponsors join"}
+                </div>
+              </div>
+            </div>
+            <div className="tier-row">
+              <span className="tier-pill tier-safe">85–99%</span>
+              <div>
+                <b>Full stake back</b>
+                <div className="muted small">No prize, no loss</div>
+              </div>
+            </div>
+            <div className="tier-row">
+              <span className="tier-pill tier-partial">&lt;85%</span>
+              <div>
+                <b>Part of your stake back</b>
+                <div className="muted small">Same % as you finish</div>
+              </div>
+            </div>
+          </div>
+          <p className="muted small" style={{ lineHeight: 1.5 }}>
+            The prize pool is what others don&apos;t get back plus any sponsor bonus, split among everyone at 100%. If nobody
+            reaches 100%, everyone is refunded and sponsors get their bonus back.
+          </p>
+            </>
+          ) : (
+            <>
           <h2>Rewards</h2>
           <p className="small" style={{ lineHeight: 1.5, marginTop: 0 }}>
             Everyone stakes <b>{money(c.deposit)}</b>. To finish, get {c.runsRequired} approved check-in{c.runsRequired > 1 ? "s" : ""} of {c.goalKm} km, one per day.
@@ -319,10 +361,12 @@ export default function ChallengePage() {
             A {Math.round(PLATFORM_FEE_RATE * 100)}% fee is taken from the stakes of runners who don&apos;t finish. Nothing is taken when everyone finishes or no one does.
             Those who don&apos;t finish forfeit their stake.
           </p>
+            </>
+          )}
           {mine && myProjected && c.status !== "settled" && (
             <div className="result ok" style={{ marginTop: 10 }}>
               {Math.min(countedRuns(mine), c.runsRequired)}/{c.runsRequired} days done. If it ended now you&apos;d get <b>{money(myProjected.amount)}</b>
-              {myProjected.finisher ? "" : `. Complete all ${c.runsRequired} to finish!`}
+              {myProjected.finisher ? "" : `. Complete all ${c.runsRequired} to ${rewardModeOf(c) === "fraction" ? "earn the prize" : "finish"}!`}
             </div>
           )}
           <p className="muted small" style={{ marginTop: 14 }}>
@@ -330,7 +374,7 @@ export default function ChallengePage() {
             review; they hold that day&apos;s slot until decided. Every check-in is stamped on Solana.
           </p>
         </aside>
-        <SponsorBox c={c} live={live} onUpdated={setC} />
+        <SponsorBox c={c} live={live} onUpdated={setC} invite={invite} />
         <AdSlot variant="card" />
         </div>
       </div>

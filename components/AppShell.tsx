@@ -79,7 +79,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         if ((p.payout || 0) <= 0) return; // nothing back: no pop-up
         const { payouts } = computePayouts(c);
         const mine = payouts.find((x) => x.address === address)!;
-        setWin({ c, payout: p.payout || 0, paySig: p.paySig, kind: mine.tier === "refund" ? "refund" : "finished" });
+        setWin({ c, payout: p.payout || 0, paySig: p.paySig, kind: mine.tier === "forfeited" ? "partial" : mine.tier, rate: mine.rate });
         return;
       }
     }

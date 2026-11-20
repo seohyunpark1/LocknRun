@@ -5,6 +5,8 @@ import { PublicKey } from "@solana/web3.js";
 import crypto from "node:crypto";
 import { CheckInStatus, MAX_LOGO_BYTES, MAX_PACE_SEC_PER_KM, MAX_PHOTO_BYTES, MAX_SESSION_SEC, MAX_SPONSORS, MIN_PACE_SEC_PER_KM, REVIEW_PACE_SEC_PER_KM, REVIEW_WINDOW_MS, Run, SPONSOR_BONUSES, clean, roomDay, runStatus } from "@/lib/config";
 import { getRun, stravaEnabled } from "@/lib/strava";
+import { canView, inviteMatches, isMember, viewFor } from "@/lib/access";
+import { isPrivate } from "@/lib/config";
 import { isMobileRequest } from "@/lib/device";
 import { payFromEscrow, sponsorAddress, stampProof } from "@/lib/solana-server";
 import { computePayouts } from "@/lib/settle";
@@ -42,10 +44,12 @@ async function withLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
   throw new Error("Busy right now, try again in a moment.");
 }
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: { id: string } }) {
   const c = await getChallenge(params.id);
-  if (!c) return NextResponse.json({ error: "Challenge not found" }, { status: 404 });
-  return NextResponse.json({ challenge: c });
+  const me = await walletSession(req);
+  // A private challenge looks exactly like a missing one without its invite link.
+  if (!c || !canView(c, me, new URL(req.url).searchParams.get("invite"))) return NextResponse.json({ error: "Challenge not found" }, { status: 404 });
+  return NextResponse.json({ challenge: viewFor(c, me) });
 }
 
 /**
@@ -65,6 +69,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const address = await walletSession(req);
     if (!address) return walletAuthFailure();
     body.address = address;
+    // Private challenges: strangers can only join or sponsor with the invite link; everything else needs membership.
+    const gate = await getChallenge(id);
+    if (gate && isPrivate(gate) && !isMember(gate, address) && body.action !== "review") {
+      const allowed = ["join", "sponsor"].includes(body.action) && inviteMatches(gate, body.invite);
+      if (!allowed) return fail("Challenge not found", 404);
+    }
     if (body.action === "join") {
       try {
         new PublicKey(body.address);

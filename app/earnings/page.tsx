@@ -12,7 +12,7 @@ import { timeLeft, useMe, useNow } from "@/lib/client";
 
 type Row = {
   c: Challenge;
-  state: "live" | "ready" | "won" | "back" | "lost" | "refunded";
+  state: "live" | "ready" | "won" | "back" | "partial" | "lost" | "refunded";
   rate: number;
   payout: number;
   bonusShare: number;
@@ -71,14 +71,14 @@ export default function EarningsPage() {
           payout = mine.amount;
         } else if (c.status === "settled") {
           payout = p.payout || 0;
-          state = nobodyWon ? "refunded" : payout > c.deposit ? "won" : payout >= c.deposit ? "back" : "lost";
+          state = nobodyWon ? "refunded" : payout > c.deposit ? "won" : payout >= c.deposit ? "back" : payout > 0 ? "partial" : "lost";
         }
         return { c, state, rate: mine.rate, payout, bonusShare, paySig: p.paySig, joinSig: p.joinSig, done: countedRuns(p) };
       })
       .sort((a, b) => b.c.createdAt - a.c.createdAt);
   }, [challenges, me, now]);
 
-  const settled = rows.filter((r) => ["won", "back", "lost", "refunded"].includes(r.state));
+  const settled = rows.filter((r) => ["won", "back", "partial", "lost", "refunded"].includes(r.state));
   const won = settled.reduce((s, r) => s + r.payout, 0);
   const deposited = settled.reduce((s, r) => s + r.c.deposit, 0);
   const net = Math.round((won - deposited) * 100) / 100;
@@ -174,7 +174,7 @@ export default function EarningsPage() {
 
         <div className="layout">
           <section>
-            <Badges rows={rows.map((r) => ({ c: r.c, rate: r.rate, settled: ["won", "back", "lost", "refunded"].includes(r.state), bonusShare: r.bonusShare }))} address={me?.address || ""} />
+            <Badges rows={rows.map((r) => ({ c: r.c, rate: r.rate, settled: ["won", "back", "partial", "lost", "refunded"].includes(r.state), bonusShare: r.bonusShare }))} address={me?.address || ""} />
             <h2 style={{ marginTop: "1.75rem" }}>Payouts</h2>
             {rows.length === 0 ? (
               <div className="empty">
@@ -207,6 +207,7 @@ export default function EarningsPage() {
                       {r.state === "won" && <b className="win">+{money(r.payout)}</b>}
                       {r.state === "lost" && <b className="lose">-{money(r.c.deposit)}</b>}
                       {r.state === "back" && <b>{money(r.payout)} back</b>}
+                      {r.state === "partial" && <b className="lose">{money(r.payout)} back</b>}
                       {r.state === "refunded" && <b>{money(r.payout)} back</b>}
                       {r.state === "ready" && <span className="muted small">{r.payout > 0 ? `${money(r.payout)} waiting` : "no payout"}</span>}
                       {r.state === "live" && <span className="muted small">in progress</span>}

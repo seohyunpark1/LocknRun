@@ -6,24 +6,33 @@ import type { Challenge } from "@/lib/config";
 import { prizeBreakdown } from "@/lib/settle";
 import { PartnerLogo, SponsorMark } from "./Logos";
 
-/** finished = you completed the goal (stake back + share of the pool), refund = nobody finished so every stake was returned */
-export type Win = { c: Challenge; payout: number; paySig?: string; kind: "finished" | "refund" };
+/** finished = goal completed (stake back + share of the pool), safe = 85–99% (fraction mode: stake back), partial = below 85% (part back), refund = nobody finished so every stake was returned */
+export type Win = { c: Challenge; payout: number; paySig?: string; kind: "finished" | "safe" | "partial" | "refund"; rate: number };
 
 
 const COLORS = ["#22c55e", "#16a34a", "#86efac", "#fde047", "#34d399", "#bbf7d0"];
 
 /** Full-screen "Congratulations, you earned $X" pop-up, shown on any page when a payout lands. */
 export default function Celebration({ win, name, onClose }: { win: Win; name: string; onClose: () => void }) {
-  const { c, payout, paySig, kind } = win;
+  const { c, payout, paySig, kind, rate } = win;
   const refund = kind === "refund";
   const won = kind === "finished";
   const pb = prizeBreakdown(c);
+  const pct = Math.round(rate * 100);
   const heading = won
     ? `Congratulations, ${name}!`
-    : `Your stake is back, ${name}`;
+    : refund
+      ? `Your stake is back, ${name}`
+      : kind === "safe"
+        ? `So close, ${name}!`
+        : `You got some back, ${name}`;
   const sub = won
     ? `You finished “${c.title}”. Your stake is back${payout > c.deposit ? ", plus your share of the pool." : "."}`
-    : "Nobody finished this challenge, so every stake was refunded.";
+    : refund
+      ? "Nobody finished this challenge, so every stake was refunded."
+      : kind === "safe"
+        ? `You finished ${pct}%, so your full stake is back. Finish every run next time to earn a prize.`
+        : `You finished ${pct}%, so ${pct}% of your ${money(c.deposit)} stake is back.`;
   // The sponsor who put in the most is front and center: they're paying for this moment.
   const ranked = (c.sponsors || []).map((s, index) => ({ s, index })).sort((x, y) => y.s.amount - x.s.amount);
   const top = ranked[0];
@@ -79,7 +88,7 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
             <div className="muted small">{refund ? "Stake returned" : "Challenge complete"}</div>
           </>
         )}
-        <div className={`tier-pill tier-${kind}`}>{refund ? "Refund" : "Finished"}</div>
+        <div className={`tier-pill tier-${kind}`}>{refund ? "Refund" : kind === "finished" ? "Finished" : `${pct}% finished`}</div>
         <h2 className="celebrate-title">{heading}</h2>
         <div className={`celebrate-amt ${won ? "" : "muted-amt"}`}>+{money(payout)}</div>
         <div className="muted">{sub}</div>

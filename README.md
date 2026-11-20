@@ -103,6 +103,9 @@ Before approval, the browser decodes the transaction and checks the exact transf
 Regression tests reproduce the former simulation/message mismatch, check v0 byte equality, reject Mainnet RPCs and altered transfer/authority instructions, and retain recovery of legacy pending deposits. These checks do **not** certify the app as audited or guarantee Phantom's own warning disappears. Test the new preview on the deployed domain; cancel instead of approving if Phantom still warns, and use its domain/transaction review process if needed. Reference: https://docs.phantom.com/recipes/transactions/resolve-transaction-simulation-warnings.
 
 ### Rewards (`lib/settle.ts`), per `LocknRun_Basic_Structure.md` section 6
+The creator picks a **reward mode** per challenge (`rewardMode`): **All or nothing** (default, below) or **By fraction** (Challengers-style: 100% = stake + prize share, 85–99% = stake back, below 85% = stake × completion rate; no fee; nobody at 100% = refunds). They also pick **Public** or **Private** (`visibility`): private challenges are hidden from the list and 404 without the secret `?invite=` link; the code is only returned to participants.
+
+#### All or nothing
 `N` runners stake `D` each, `W` of them finish (all required qualifying days approved), sponsors add `B`.
 
 | Outcome | Result |
@@ -120,7 +123,7 @@ All math is integer micro-USDC and shared by the UI and payouts. The fee stays i
 2. `run` submits distance, time and **one live camera photo** (the browser camera stream only; no file picker). Check-ins are **phone-only**: requests from desktop user agents are refused (a guard, not tamper-proof). `strava` imports a Strava run instead (no photo; Strava reports distance/time) under the same daily and pace rules. Rejected if the session is unknown, reused, or the reported time is longer than the session lasted; if under the goal distance; or if pace is outside 2:30–20:00/km.
 3. **One counted check-in per room day** in the challenge's fixed time zone (set from the creator's browser, shown on the challenge page). A goal can't need more days than the challenge spans.
 4. Paces faster than 3:30/km become **pending review**: they hold that day's slot and don't count. A reviewer decides with `action: "review"` and the `x-verifier-key` header (env `VERIFIER_KEY`; disabled if unset). Payout waits for pending reviews, up to 24 hours after the end; unresolved ones then don't count.
-5. Verification today is the server session clock + live photo + pace/distance checks; distance comes from the phone's browser location. The document's Core Motion/HealthKit motion verification needs a native iOS app and is **not** implemented. The voice coach is removed.
+5. Verification today is the server session clock + live photo + pace/distance checks; distance comes from the phone's browser location. Motion-sensor verification (Core Motion / HealthKit, per the structure document) is a natural **future improvement** that fits a native iOS app. The voice coach is removed.
 
 ### Badges
 The earnings page awards badges: First 100%, Hot streak (3 perfect in a row), Perfect five, Sponsor-backed,

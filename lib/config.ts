@@ -100,6 +100,12 @@ export type Participant = {
   paySig?: string; // escrow -> runner
 };
 
+/** pool = all-or-nothing: finishers split the pool. fraction = Challengers-style tiers by share of runs completed. */
+export type RewardMode = "pool" | "fraction";
+export type Visibility = "public" | "private";
+export const rewardModeOf = (c: Pick<Challenge, "rewardMode">): RewardMode => c.rewardMode ?? "pool";
+export const isPrivate = (c: Pick<Challenge, "visibility">) => c.visibility === "private";
+
 export type ChallengeStatus = "draft" | "active" | "settling" | "settled";
 
 /** A brand that added bonus money to a challenge's pot (split among finishers). */
@@ -138,6 +144,9 @@ export type Challenge = {
   endsAt: number;
   creatorName: string;
   timeZone?: string; // IANA zone that defines room days; displayed before joining
+  rewardMode?: RewardMode; // how the pool is shared; missing = "pool"
+  visibility?: Visibility; // missing = public
+  inviteCode?: string; // private challenges: the secret in the invite link; only participants ever see it
   status: ChallengeStatus;
   participants: Participant[];
   pendingDeposits?: string[];

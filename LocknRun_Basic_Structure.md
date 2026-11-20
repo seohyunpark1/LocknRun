@@ -39,19 +39,21 @@ These defaults turn the discussion into an implementable first version. They can
 | Calendar | One fixed room time zone, displayed before joining |
 | Streak | Consecutive qualifying room days |
 | Participation deadline | Before the challenge begins |
-| Settlement fee | 5% of forfeited participant stakes |
+| Reward mode | Chosen by the creator when the room is created: **all or nothing** (default) or **by fraction** |
+| Room visibility | Chosen by the creator: **public** (anyone can find and join) or **private** (invitation link only) |
+| Settlement fee | 5% of forfeited participant stakes in all-or-nothing rooms; none in by-fraction rooms |
 | Result review window | A defined period after the final check-in deadline, proposed as 24 hours |
 | Result submission timeout | A later published deadline, proposed as 48 hours after the final check-in deadline |
 | Primary implementation | Native iOS app |
 | First bounty target | QuickNode Streams |
 
-The room stores its minimum participant count. For the first five-person demo, the minimum equals the room capacity. Once the first participant deposits, the room’s financial rules, schedule, goal, and verification policy are fixed.
+The room stores its minimum participant count. The reward mode and visibility are part of the fixed rules and cannot change after the first deposit. For the first five-person demo, the minimum equals the room capacity. Once the first participant deposits, the room’s financial rules, schedule, goal, and verification policy are fixed.
 
 ## 2. Core user experience
 
 ### Join and commit
 
-1. Open a friend’s invitation link.
+1. Open a friend’s invitation link, or find a public room in the room list. Private rooms do not appear in the list and cannot be opened or joined without their invitation link.
 2. Sign in and create a profile.
 3. Connect a supported Solana wallet.
 4. Review the goal, stake, time zone, completion rule, fees, verification policy, and refund conditions.
@@ -203,7 +205,25 @@ Finalization records allocations and exposes a platform fee claim under the fixe
 
 ## 6. Settlement rules and economics
 
-### Participant pool
+### Reward modes
+
+The creator chooses one of two reward modes when creating the room, and the room shows the choice before anyone joins. Both modes use the same eligibility rules, sponsor bonuses, and refund conditions. They differ in how stakes are shared.
+
+| | All or nothing (default) | By fraction |
+| --- | --- | --- |
+| Who is paid | Only participants who finish. Everyone else forfeits the stake. | Everyone gets back a share of the stake that depends on the share of required days completed. |
+| 100% of days | Share the pool equally | Stake back, plus an equal share of the prize pool |
+| 85–99% of days | Forfeits the stake | Full stake back, no prize |
+| Below 85% of days | Forfeits the stake | Stake × share of days completed |
+| Prize pool | Forfeited stakes (after the platform fee) plus sponsor bonuses | Whatever below-85% participants do not get back, plus sponsor bonuses |
+| Nobody reaches the finish line | Every stake refunded, sponsor bonuses returned | Every stake refunded, sponsor bonuses returned |
+| Platform fee | 5% of forfeited stakes | None |
+
+By-fraction allocations use integer smallest units, rounded down; any remainder stays in the room vault. For three runners staking 20 USDC with a 75 USDC sponsor bonus and two required days, if one runner completes 2 of 2 days, one completes 1 of 2, and one completes 0 of 2, the payouts are 125, 10, and 0 USDC.
+
+Participants should choose the mode with the incentive in mind: by-fraction rooms are gentler on a missed day, while all-or-nothing rooms put more money at stake for finishing. The rest of this section describes the all-or-nothing mode.
+
+### Participant pool (all or nothing)
 
 Let:
 
