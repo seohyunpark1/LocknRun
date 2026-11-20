@@ -40,11 +40,17 @@ split follows fixed rules, and nobody (not even a friend who "forgets") can back
 
 ### Settlement rules (`lib/settle.ts`)
 Everyone locks the same deposit `D`. With `F` finishers and `Q` quitters:
-- **Finishers** receive `D + (Q × D) / F` (rounded down to the cent).
+- **Finishers** receive `D + (Q × D + B) / F`, where `B` is the sponsor bonus (rounded down to the cent).
 - **Quitters** receive nothing; their deposits fund the finishers.
-- **If nobody finishes,** everyone is refunded `D`.
+- **If nobody finishes,** everyone is refunded `D` and sponsors get their bonus back.
 
 Example: 3 runners × $10. Two finish, one quits → each finisher gets **$15** ($10 back + $5 from the quitter).
+
+### Sponsored challenges
+Brands (a running store, a campus club) can add a **bonus** of $10, $25, $50 or $100 to any live challenge. The bonus
+is locked in the same escrow (memo `LockRun|sponsor|<challenge>`), split equally among finishers at payout, and
+returned to the sponsor if nobody finishes. Sponsored challenges show a "+$50 bonus · Sponsored by …" badge and are
+listed first. Example: 3 runners × $10 + a $50 bonus, 2 finish → each finisher gets $40.
 
 ### Proof: every run needs one
 - **Photo proof (GPS runs):** after a GPS run, the runner adds a photo (a selfie at the finish or their watch screen).

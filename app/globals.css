@@ -327,3 +327,24 @@ label { display: block; font-weight: 500; font-size: 0.85rem; color: var(--muted
 }
 .unit-chips .chip { font-size: 0.85rem; }
 .dial.dial-bare { margin-top: 0.5rem; }
+
+/* Sponsors */
+.side-col { display: grid; gap: 1.25rem; align-content: start; min-width: 0; }
+.sponsor-badge { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; font-weight: 600; color: #7c4a03; background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #fcd34d; border-radius: 999px; padding: 0.15rem 0.6rem; margin-bottom: 0.35rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ccard.sponsored { border-color: #fcd34d; box-shadow: 0 0 0 3px rgba(252, 211, 77, .25), var(--card-shadow); }
+.sponsor-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.75rem; font-size: 0.9rem; color: var(--muted); }
+.sponsor-banner .sponsor-badge { margin: 0; font-size: 0.8rem; }
+.sponsor-list { list-style: none; padding: 0; margin: 0 0 0.9rem; display: grid; gap: 0.6rem; }
+.sponsor-list li { display: flex; align-items: center; gap: 0.7rem; }
+.sponsor-logo { width: 2.2rem; height: 2.2rem; border-radius: 0.6rem; display: grid; place-items: center; font-weight: 700; color: #7c4a03; background: linear-gradient(135deg, #fef3c7, #fde68a); flex-shrink: 0; }
+.sponsor-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sponsor-name a { color: var(--ink); text-decoration: none; }
+.sponsor-amt { color: #a16207; font-variant-numeric: tabular-nums; }
+.sponsor-list .muted { color: var(--muted); text-underline-offset: 3px; }
+
+/* Powered by */
+.partners { margin-top: clamp(2rem, 6vw, 3rem); padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.partner-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 0.6rem; margin-top: 0.6rem; }
+.partner { display: grid; gap: 0.1rem; padding: 0.75rem 0.9rem; border-radius: var(--radius); background: rgba(255, 255, 255, .65); border: 1px solid var(--line); }
+.partner b { font-size: 1rem; letter-spacing: -0.01em; }
+.partner span { font-size: 0.8rem; color: var(--muted); }

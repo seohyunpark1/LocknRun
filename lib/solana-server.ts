@@ -57,6 +57,16 @@ export function lockDeposit(challengeId: string, amount: number) {
   return transferUsdc(sponsor(), escrow().publicKey, amount, `LockRun|join|${challengeId}`);
 }
 
+/** A brand sponsors a challenge: the bonus is locked in escrow. (Sponsor wallet = demo stand-in for the brand's card.) */
+export function lockSponsorBonus(challengeId: string, amount: number) {
+  return transferUsdc(sponsor(), escrow().publicKey, amount, `LockRun|sponsor|${challengeId}`);
+}
+
+/** Nobody finished: the sponsor bonus goes back (to the brand's card, in production). */
+export function refundSponsorBonus(challengeId: string, amount: number) {
+  return transferUsdc(escrow(), sponsor().publicKey, amount, `LockRun|sponsor-refund|${challengeId}`);
+}
+
 /** Settlement: escrow pays a finisher (or refunds everyone if nobody finished). */
 export function payFromEscrow(challengeId: string, to: string, amount: number) {
   return transferUsdc(escrow(), new PublicKey(to), amount, `LockRun|payout|${challengeId}`);

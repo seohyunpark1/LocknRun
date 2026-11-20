@@ -5,7 +5,7 @@ import Link from "next/link";
 import NameGate from "@/components/NameGate";
 import Dial from "@/components/Dial";
 import AppShell from "@/components/AppShell";
-import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, countedRuns, durationLabel, money } from "@/lib/config";
+import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
@@ -61,9 +61,12 @@ export default function Home() {
   }
 
   if (!ready) return null;
-  const active = data.challenges.filter((c) => c.status === "active" && c.endsAt > now);
+  // Sponsored challenges are listed first.
+  const active = data.challenges
+    .filter((c) => c.status === "active" && c.endsAt > now)
+    .sort((a, b) => bonusOf(b) - bonusOf(a));
   const ended = data.challenges.filter((c) => !(c.status === "active" && c.endsAt > now));
-  const locked = data.challenges.filter((c) => c.status !== "settled").reduce((s, c) => s + c.deposit * c.participants.length, 0);
+  const locked = data.challenges.filter((c) => c.status !== "settled").reduce((s, c) => s + potOf(c), 0);
 
   const runners = new Set(active.flatMap((c) => c.participants.map((p) => p.address))).size;
 
@@ -167,6 +170,16 @@ export default function Home() {
         <div className="step"><b>3 · Split the pot</b>Finishers split the quitters&apos; deposits, paid out in about a second.</div>
       </section>
 
+      <section className="partners" aria-label="Powered by">
+        <div className="muted small">Powered by</div>
+        <div className="partner-row">
+          <div className="partner"><b>Solana</b><span>Escrow, payouts and proof stamps</span></div>
+          <div className="partner"><b>USDC</b><span>Deposits and payouts in digital dollars</span></div>
+          <div className="partner"><b>ElevenLabs</b><span>Voice coach while you run</span></div>
+          <div className="partner"><b>Strava</b><span>Import runs as proof</span></div>
+        </div>
+      </section>
+
       <p className="foot">Hackathon demo · Solana devnet · test money only</p>
 
       {!me && (
@@ -187,12 +200,17 @@ function ChallengeCard({ c, now, meAddr }: { c: Challenge; now: number; meAddr?:
   const finishers = c.participants.filter((p) => countedRuns(p) >= c.runsRequired).length;
   const joined = c.participants.some((p) => p.address === meAddr);
   return (
-    <Link href={`/c/${c.id}`} className={`ccard ${joined ? "mine" : ""}`}>
+    <Link href={`/c/${c.id}`} className={`ccard ${joined ? "mine" : ""} ${bonusOf(c) > 0 ? "sponsored" : ""}`}>
       <div className="pot">
-        <div className="pot-amt">{money(c.deposit * c.participants.length)}</div>
+        <div className="pot-amt">{money(potOf(c))}</div>
         <div className="pot-label">pot</div>
       </div>
       <div>
+        {bonusOf(c) > 0 && (
+          <div className="sponsor-badge">
+            +{money(bonusOf(c))} bonus · Sponsored by {c.sponsors!.map((x) => x.name).join(", ")}
+          </div>
+        )}
         <div className="ctitle">{c.title}</div>
         <div className="meta">
           <span>{c.goalKm} km × {c.runsRequired}</span>

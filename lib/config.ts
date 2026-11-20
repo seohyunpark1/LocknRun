@@ -64,6 +64,11 @@ export type Participant = {
 
 export type ChallengeStatus = "active" | "settling" | "settled";
 
+/** A brand that added bonus money to a challenge's pot (split among finishers). */
+export type Sponsor = { name: string; amount: number; url?: string; at: number; sig: string };
+export const SPONSOR_BONUSES = [10, 25, 50, 100];
+export const MAX_SPONSORS = 3;
+
 export type Challenge = {
   id: string;
   title: string;
@@ -75,8 +80,13 @@ export type Challenge = {
   creatorName: string;
   status: ChallengeStatus;
   participants: Participant[];
+  sponsors?: Sponsor[];
+  sponsorRefundSig?: string; // bonus returned to sponsors when nobody finished
   settledAt?: number;
 };
+
+export const bonusOf = (c: Challenge) => (c.sponsors || []).reduce((s, x) => s + x.amount, 0);
+export const potOf = (c: Challenge) => c.deposit * c.participants.length + bonusOf(c);
 
 export function countedRuns(p: Participant) {
   return p.runs.filter((r) => r.counts).length;

@@ -5,8 +5,9 @@ import { useParams } from "next/navigation";
 import NameGate from "@/components/NameGate";
 import AppShell from "@/components/AppShell";
 import RunTracker from "@/components/RunTracker";
+import SponsorBox from "@/components/SponsorBox";
 import StravaImport from "@/components/StravaImport";
-import { Challenge, Run, countedRuns, explorerTx, isFinisher, money, pace } from "@/lib/config";
+import { Challenge, Run, bonusOf, countedRuns, explorerTx, isFinisher, money, pace, potOf } from "@/lib/config";
 import { computePayouts } from "@/lib/settle";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
@@ -123,7 +124,8 @@ export default function ChallengePage() {
 
   const live = c.status === "active" && now < c.endsAt;
   const mine = c.participants.find((p) => p.address === me?.address);
-  const pot = c.deposit * c.participants.length;
+  const pot = potOf(c);
+  const bonus = bonusOf(c);
   const { payouts } = computePayouts(c);
   const myProjected = payouts.find((p) => p.address === me?.address);
   const board = [...c.participants].sort((a, b) => countedRuns(b) - countedRuns(a));
@@ -141,8 +143,15 @@ export default function ChallengePage() {
           <h1 style={{ marginTop: 10 }}>{c.title}</h1>
           <p className="lede">
             Run <b>{c.goalKm} km</b>, <b>{c.runsRequired} time{c.runsRequired > 1 ? "s" : ""}</b> before the clock runs out.
-            Deposit <b>{money(c.deposit)}</b>. Finishers split the quitters&apos; deposits.
+            Deposit <b>{money(c.deposit)}</b>. Finishers split the quitters&apos; deposits
+            {bonus > 0 ? <> and a <b>{money(bonus)} sponsor bonus</b></> : null}.
           </p>
+          {bonus > 0 && (
+            <div className="sponsor-banner">
+              <span className="sponsor-badge">+{money(bonus)} bonus</span>
+              <span>Sponsored by {c.sponsors!.map((x) => x.name).join(", ")}</span>
+            </div>
+          )}
         </div>
         <div className="potbox">
           <div className="pot-amt">{money(pot)}</div>
@@ -168,7 +177,8 @@ export default function ChallengePage() {
               <h2>Join this challenge</h2>
               <p className="muted" style={{ marginTop: 0 }}>
                 Lock {money(c.deposit)}. Finish {c.runsRequired}× {c.goalKm} km and you get it back
-                {c.participants.length > 0 ? ", plus a share of anyone who quits" : ""}.
+                {c.participants.length > 0 ? ", plus a share of anyone who quits" : ""}
+                {bonus > 0 ? ` and of the ${money(bonus)} sponsor bonus` : ""}.
               </p>
               <button className="btn primary block" disabled={!!busy || !me} onClick={() => act("join")}>
                 {busy === "join" ? "Locking your deposit…" : `Join & lock ${money(c.deposit)}`}
@@ -273,6 +283,7 @@ export default function ChallengePage() {
           </div>
         </section>
 
+        <div className="side-col">
         <aside className="soft">
           <h2>How the pot splits</h2>
           <p className="small" style={{ lineHeight: 1.5 }}>
@@ -281,7 +292,8 @@ export default function ChallengePage() {
           <ul className="small" style={{ lineHeight: 1.6, paddingLeft: 18 }}>
             <li>Finishers get their deposit back plus an equal share of the quitters&apos; deposits.</li>
             <li>Quitters lose their deposit.</li>
-            <li>If nobody finishes, everyone is refunded.</li>
+            <li>Sponsor bonuses are split equally among finishers.</li>
+            <li>If nobody finishes, everyone is refunded (and sponsors get their bonus back).</li>
           </ul>
           {mine && myProjected && c.status !== "settled" && (
             <div className="result ok" style={{ marginTop: 10 }}>
@@ -294,6 +306,8 @@ export default function ChallengePage() {
             a photo, or a run recorded on Strava. Every proof is stamped on Solana.
           </p>
         </aside>
+        <SponsorBox c={c} live={live} onUpdated={setC} />
+        </div>
       </div>
 
       <p className="foot">Hackathon demo · Solana devnet · test money only{demo ? " · demo mode on" : ""}</p>
