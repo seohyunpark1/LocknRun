@@ -1,4 +1,4 @@
-import { walletSession } from "@/lib/wallet-auth";
+import { walletSession, walletAuthFailure } from "@/lib/wallet-auth";
 import { NextResponse } from "next/server";
 import { getChallenge } from "@/lib/store";
 import { listRuns } from "@/lib/strava";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const url = new URL(req.url);
   const address = await walletSession(req);
-  if (!address) return NextResponse.json({ error: "Connect your wallet first." }, { status: 401 });
+  if (!address) return walletAuthFailure();
   const c = await getChallenge(url.searchParams.get("challenge") || "");
   const p = c?.participants.find((x) => x.address === address);
   if (!c || !p) return NextResponse.json({ error: "Join the challenge first." }, { status: 403 });

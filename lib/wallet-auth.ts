@@ -1,7 +1,8 @@
 import 'server-only';
+import { NextResponse } from 'next/server';
 import { createPublicKey, verify, randomBytes } from 'node:crypto';
 import bs58 from 'bs58';
-import { kvGet, kvSet, acquireLock, releaseLock } from './store';
+import { kvGet, kvSet, acquireLock, releaseLock, sharedStorageUnavailable } from './store';
 export const authCookie = 'lockrun_session';
 export const sessionToken = () => randomBytes(32).toString('hex');
 export function verifyWalletMessage(address: string, message: string, signature: string) {
@@ -29,4 +30,10 @@ export async function useNonce(id: string, address: string, signature: string) {
     await kvSet(key, { ...nonce, used: true });
     return true;
   } finally { await releaseLock(key, lock); }
+}
+
+/** Distinguish an unavailable login service from an absent/expired wallet session. */
+export function walletAuthFailure() {
+  if (sharedStorageUnavailable()) return NextResponse.json({ error: 'Wallet sign-in is temporarily unavailable because the app service is not configured. Please contact the app owner.', code: 'SHARED_STORAGE_UNAVAILABLE' }, { status: 503 });
+  return NextResponse.json({ error: 'Sign in with your wallet to continue. Reconnect if it is already connected.', code: 'WALLET_SESSION_REQUIRED' }, { status: 401 });
 }

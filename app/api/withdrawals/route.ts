@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { PublicKey, Transaction } from '@solana/web3.js';
 import { prepareWithdraw, submitWithdraw, usdcBalance } from '@/lib/solana-server';
-import { walletSession } from '@/lib/wallet-auth';
+import { walletSession, walletAuthFailure } from '@/lib/wallet-auth';
 import { requireDurableStorage } from '@/lib/deposits';
 import { kvGet, kvSet } from '@/lib/store';
 export const runtime = 'nodejs';
@@ -11,13 +11,13 @@ export const maxDuration = 60;
 type Withdrawal = { address: string; message: string; signed?: string };
 export async function GET(req: Request) {
   const address = await walletSession(req);
-  if (!address) return NextResponse.json({ error: 'Connect your wallet first.' }, { status: 401 });
+  if (!address) return walletAuthFailure();
   try { return NextResponse.json({ usdc: await usdcBalance(address) }); }
   catch { return NextResponse.json({ error: 'Balance unavailable.' }, { status: 503 }); }
 }
 export async function POST(req: Request) {
   const address = await walletSession(req);
-  if (!address) return NextResponse.json({ error: 'Connect your wallet first.' }, { status: 401 });
+  if (!address) return walletAuthFailure();
   try {
     requireDurableStorage();
     const b = await req.json();

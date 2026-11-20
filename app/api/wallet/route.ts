@@ -1,15 +1,17 @@
 import { NextResponse } from 'next/server';
-import { authCookie, sessionToken, useNonce, walletSession } from '@/lib/wallet-auth';
-import { kvSet } from '@/lib/store';
+import { authCookie, sessionToken, useNonce, walletSession, walletAuthFailure } from '@/lib/wallet-auth';
+import { kvSet, sharedStorageUnavailable } from '@/lib/store';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
+  if (sharedStorageUnavailable()) return walletAuthFailure();
   const id = sessionToken();
   const message = `Sign in to Lock&Run\nOrigin: ${new URL(req.url).origin}\nNetwork: Solana Devnet\nNonce: ${id}\nThis signature proves wallet ownership. It does not transfer funds.`;
   await kvSet(`nonce:${id}`, { message, expires: Date.now() + 300_000 });
   return NextResponse.json({ id, message, address: await walletSession(req) });
 }
 export async function POST(req: Request) {
+  if (sharedStorageUnavailable()) return walletAuthFailure();
   const b = await req.json().catch(() => ({}));
   if (!await useNonce(String(b.id), String(b.address), String(b.signature))) return NextResponse.json({ error: 'Wallet signature invalid or expired.' }, { status: 401 });
   const token = sessionToken();

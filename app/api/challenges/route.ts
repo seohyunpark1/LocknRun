@@ -1,4 +1,4 @@
-import { walletSession } from "@/lib/wallet-auth";
+import { walletSession, walletAuthFailure } from "@/lib/wallet-auth";
 import { prepareDeposit } from "@/lib/deposits";
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
@@ -31,7 +31,7 @@ function limited(ip: string) {
 export async function POST(req: Request) {
   try {
     const address = await walletSession(req);
-    if (!address) return NextResponse.json({ error: "Connect your wallet first." }, { status: 401 });
+    if (!address) return walletAuthFailure();
     const b = await req.json();
     b.address = address;
     const goalKm = Math.round(Number(b.goalKm) * 10) / 10;

@@ -196,3 +196,23 @@ test('withdrawals require login, bind sender and recipient, and retry without an
   assert.equal(send.mock.callCount(), 1);
   t.mock.restoreAll();
 });
+
+test('Vercel without shared storage reports setup failure instead of a disconnected wallet', async () => {
+  const { GET, POST } = await import('../app/api/wallet/route');
+  const { POST: create } = await import('../app/api/challenges/route');
+  const previous = process.env.VERCEL;
+  process.env.VERCEL = '1';
+  try {
+    const nonce = await GET(new Request('https://lockrun.test/api/wallet'));
+    assert.equal(nonce.status, 503);
+    assert.equal((await nonce.json()).code, 'SHARED_STORAGE_UNAVAILABLE');
+    const login = await POST(new Request('https://lockrun.test/api/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }));
+    assert.equal(login.status, 503);
+    assert.equal(login.headers.get('set-cookie'), null);
+    const challenge = await create(new Request('https://lockrun.test/api/challenges', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }));
+    assert.equal(challenge.status, 503);
+    assert.equal((await challenge.json()).code, 'SHARED_STORAGE_UNAVAILABLE');
+  } finally {
+    if (previous === undefined) delete process.env.VERCEL; else process.env.VERCEL = previous;
+  }
+});

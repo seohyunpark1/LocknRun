@@ -1,4 +1,4 @@
-import { walletSession } from "@/lib/wallet-auth";
+import { walletSession, walletAuthFailure } from "@/lib/wallet-auth";
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import { authorizeUrl, signState, stravaEnabled } from "@/lib/strava";
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   if (!stravaEnabled()) return NextResponse.json({ error: "Strava isn't set up on this server." }, { status: 501 });
   const address = await walletSession(req);
-  if (!address) return NextResponse.json({ error: "Connect your wallet first." }, { status: 401 });
+  if (!address) return walletAuthFailure();
   try {
     new PublicKey(address);
   } catch {

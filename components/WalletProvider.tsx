@@ -51,11 +51,14 @@ export default function WalletProvider({ children }: { children: React.ReactNode
     const account = accounts.find(a => a.chains.includes('solana:devnet') && a.features.includes('solana:signTransaction') && a.features.includes('solana:signMessage'));
     if (!account) throw new Error('Select an account supporting Solana Devnet, transaction signing and message signing.');
     const nonceResponse = await fetch('/api/wallet', { cache: 'no-store' });
-    if (!nonceResponse.ok) throw new Error('Sign-in service unavailable.');
     const nonce = await nonceResponse.json();
+    if (!nonceResponse.ok) throw new Error(nonce.error || 'Wallet sign-in service is unavailable.');
     const [signed] = await wallet.features['solana:signMessage'].signMessage({ account, message: new TextEncoder().encode(nonce.message) });
     const r = await fetch('/api/wallet', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: nonce.id, address: account.address, signature: bs58.encode(signed.signature) }) });
-    if (!r.ok) throw new Error('Could not verify wallet ownership.');
+    if (!r.ok) { const failure = await r.json(); throw new Error(failure.error || 'Could not verify wallet ownership.'); }
+    const check = await fetch('/api/wallet', { cache: 'no-store' });
+    const session = await check.json();
+    if (!check.ok || session.address !== account.address) throw new Error(session.error || 'Phantom connected, but the app could not retain your sign-in session. Please try signing in again.');
     setConnected({ wallet, account });
     setMe({ name: name.trim().slice(0, 24), address: account.address });
   }

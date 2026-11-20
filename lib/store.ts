@@ -15,6 +15,8 @@ const REDIS_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_R
 const redis = REDIS_URL && REDIS_TOKEN ? new Redis({ url: REDIS_URL, token: REDIS_TOKEN }) : null;
 const HASH = "lockrun:challenges";
 
+export function sharedStorageUnavailable() { return !!process.env.VERCEL && !redis; }
+
 if (!redis && process.env.VERCEL) {
   console.warn("Lock&Run: no Redis configured. Challenges will NOT persist on Vercel. Add Upstash for Redis.");
 }
