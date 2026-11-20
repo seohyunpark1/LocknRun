@@ -1,26 +1,38 @@
 "use client";
 import { useMemo } from "react";
 import Link from "next/link";
-import { Challenge, explorerTx, isFinisher, money } from "@/lib/config";
+import { explorerTx, money, partnerByName, partnerLogoSources } from "@/lib/config";
+import type { Challenge } from "@/lib/config";
+import { prizeBreakdown } from "@/lib/settle";
 import { PartnerLogo, SponsorMark } from "./Logos";
 
-export type Win = { c: Challenge; payout: number; paySig?: string; refund: boolean };
+/** full = 100% (deposit + prize), safe = 85–99% (deposit back), partial = below 85% (part back), refund = nobody hit 100% */
+export type Win = { c: Challenge; payout: number; paySig?: string; kind: "full" | "safe" | "partial" | "refund"; rate: number };
 
-/** Splits a finisher's payout into: deposit back + quitters' money + sponsor bonus. */
-function breakdown(c: Challenge, payout: number) {
-  const finishers = c.participants.filter((p) => isFinisher(c, p)).length || 1;
-  const quitters = c.participants.length - finishers;
-  const fromQuitters = Math.floor((quitters * c.deposit * 100) / finishers) / 100;
-  const bonus = Math.max(0, Math.round((payout - c.deposit - fromQuitters) * 100) / 100);
-  return { deposit: c.deposit, fromQuitters, bonus };
-}
 
 const COLORS = ["#22c55e", "#16a34a", "#86efac", "#fde047", "#34d399", "#bbf7d0"];
 
 /** Full-screen "Congratulations, you earned $X" pop-up, shown on any page when a payout lands. */
 export default function Celebration({ win, name, onClose }: { win: Win; name: string; onClose: () => void }) {
-  const { c, payout, paySig, refund } = win;
-  const b = breakdown(c, payout);
+  const { c, payout, paySig, kind, rate } = win;
+  const refund = kind === "refund";
+  const won = kind === "full";
+  const pb = prizeBreakdown(c);
+  const pct = Math.round(rate * 100);
+  const heading = won
+    ? `Congratulations, ${name}!`
+    : refund
+      ? `Your money is back, ${name}`
+      : kind === "safe"
+        ? `So close, ${name}!`
+        : `You got some back, ${name}`;
+  const sub = won
+    ? `You hit 100% on “${c.title}” and won prize money.`
+    : refund
+      ? "Nobody hit 100%, so every deposit was refunded."
+      : kind === "safe"
+        ? `You hit ${pct}%, so your full deposit is back. Hit 100% next time for prize money.`
+        : `You hit ${pct}%, so ${pct}% of your ${money(c.deposit)} deposit is back.`;
   // The sponsor who put in the most is front and center: they're paying for this moment.
   const ranked = (c.sponsors || []).map((s, index) => ({ s, index })).sort((x, y) => y.s.amount - x.s.amount);
   const top = ranked[0];
@@ -40,7 +52,7 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
 
   return (
     <div className="celebrate" role="dialog" aria-modal="true" aria-label="Congratulations">
-      {!refund && (
+      {won && (
         <div className="confetti" aria-hidden>
           {confetti.map((p, i) => (
             <span
@@ -76,15 +88,16 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
             <div className="muted small">{refund ? "Deposit returned" : "Challenge complete"}</div>
           </>
         )}
-        <h2 className="celebrate-title">{refund ? `Your money is back, ${name}` : `Congratulations, ${name}!`}</h2>
-        <div className="celebrate-amt">+{money(payout)}</div>
-        <div className="muted">{refund ? "Nobody finished, so every deposit was refunded." : `You finished “${c.title}” and got paid.`}</div>
+        <div className={`tier-pill tier-${kind}`}>{refund ? "Refund" : `${pct}% achieved`}</div>
+        <h2 className="celebrate-title">{heading}</h2>
+        <div className={`celebrate-amt ${won ? "" : "muted-amt"}`}>+{money(payout)}</div>
+        <div className="muted">{sub}</div>
 
-        {!refund && (
+        {won && (
           <div className="celebrate-break">
-            <div><span>Your deposit back</span><b>{money(b.deposit)}</b></div>
-            {b.fromQuitters > 0 && <div><span>From the quitters</span><b>+{money(b.fromQuitters)}</b></div>}
-            {b.bonus > 0 && (
+            <div><span>Your deposit back</span><b>{money(c.deposit)}</b></div>
+            {pb.fromOthers > 0 && <div><span>Prize from other runners</span><b>+{money(pb.fromOthers)}</b></div>}
+            {pb.bonusShare > 0 && (
               <div>
                 <span className="celebrate-sponsor">
                   {(c.sponsors || []).map((s, i) => (
@@ -92,7 +105,7 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
                   ))}
                   Sponsor bonus
                 </span>
-                <b>+{money(b.bonus)}</b>
+                <b>+{money(pb.bonusShare)}</b>
               </div>
             )}
             <div className="total"><span>Total paid to you</span><b>{money(payout)}</b></div>
@@ -103,13 +116,16 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
           <Link href="/earnings" className="btn primary block" onClick={onClose}>
             See my earnings
           </Link>
+          <Link href="/shop" className="btn block" onClick={onClose}>
+            Spend it in the Shop
+          </Link>
           <button className="btn block" onClick={onClose}>
             Close
           </button>
         </div>
         <div className="celebrate-chain">
           <span className="muted small">Paid out on</span>
-          <PartnerLogo src="/partners/solana.svg" name="Solana" className="celebrate-chain-logo" />
+          <PartnerLogo src={partnerLogoSources(partnerByName("Solana"))} name="Solana" className="celebrate-chain-logo" />
           <b className="small">Solana</b>
           {paySig && (
             <a className="small muted" href={explorerTx(paySig)} target="_blank" rel="noreferrer">

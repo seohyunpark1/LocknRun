@@ -4,13 +4,16 @@ import Link from "next/link";
 import AppShell from "@/components/AppShell";
 import NameGate from "@/components/NameGate";
 import { SponsorMark } from "@/components/Logos";
-import { Challenge, bonusOf, countedRuns, explorerAddress, explorerTx, isFinisher, money } from "@/lib/config";
-import { computePayouts } from "@/lib/settle";
+import { Challenge, countedRuns, explorerAddress, explorerTx, money } from "@/lib/config";
+import { computePayouts, prizeBreakdown } from "@/lib/settle";
+import Badges from "@/components/Badges";
+import AdSlot from "@/components/AdSlot";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Row = {
   c: Challenge;
-  state: "live" | "ready" | "won" | "lost" | "refunded";
+  state: "live" | "ready" | "won" | "back" | "partial" | "lost" | "refunded";
+  rate: number;
   payout: number;
   bonusShare: number;
   paySig?: string;
@@ -56,25 +59,26 @@ export default function EarningsPage() {
       .filter((c) => c.participants.some((p) => p.address === me.address))
       .map((c) => {
         const p = c.participants.find((x) => x.address === me.address)!;
-        const finishers = c.participants.filter((x) => isFinisher(c, x)).length;
-        const bonus = bonusOf(c);
-        const bonusShare = finishers > 0 && isFinisher(c, p) ? Math.floor((bonus * 100) / finishers) / 100 : 0;
+        const { payouts } = computePayouts(c);
+        const mine = payouts.find((x) => x.address === me.address)!;
+        const nobodyWon = !payouts.some((x) => x.tier === "full");
+        const bonusShare = mine.tier === "full" && !nobodyWon ? prizeBreakdown(c).bonusShare : 0;
         const live = c.status === "active" && now < c.endsAt;
         let state: Row["state"] = "live";
         let payout = 0;
         if (!live && c.status !== "settled") {
           state = "ready";
-          payout = computePayouts(c).payouts.find((x) => x.address === me.address)?.amount || 0;
+          payout = mine.amount;
         } else if (c.status === "settled") {
           payout = p.payout || 0;
-          state = finishers === 0 ? "refunded" : payout > 0 ? "won" : "lost";
+          state = nobodyWon ? "refunded" : payout > c.deposit ? "won" : payout >= c.deposit ? "back" : payout > 0 ? "partial" : "lost";
         }
-        return { c, state, payout, bonusShare, paySig: p.paySig, joinSig: p.joinSig, done: countedRuns(p) };
+        return { c, state, rate: mine.rate, payout, bonusShare, paySig: p.paySig, joinSig: p.joinSig, done: countedRuns(p) };
       })
       .sort((a, b) => b.c.createdAt - a.c.createdAt);
   }, [challenges, me, now]);
 
-  const settled = rows.filter((r) => r.state === "won" || r.state === "lost" || r.state === "refunded");
+  const settled = rows.filter((r) => ["won", "back", "partial", "lost", "refunded"].includes(r.state));
   const won = settled.reduce((s, r) => s + r.payout, 0);
   const deposited = settled.reduce((s, r) => s + r.c.deposit, 0);
   const net = Math.round((won - deposited) * 100) / 100;
@@ -145,7 +149,7 @@ export default function EarningsPage() {
         <section className="hero">
           <h1>
             My earnings<br />
-            <span className="hl">{net >= 0 ? `+${money(net)}` : `-${money(-net)}`} so far.</span>
+            <span className={net >= 0 ? "hl" : "neg"}>{net >= 0 ? `+${money(net)}` : `-${money(-net)}`} so far.</span>
           </h1>
           <p className="lede">Everything you&apos;ve won, every payout receipt, and your balance, ready to cash out.</p>
         </section>
@@ -171,7 +175,8 @@ export default function EarningsPage() {
 
         <div className="layout">
           <section>
-            <h2>Payouts</h2>
+            <Badges rows={rows.map((r) => ({ c: r.c, rate: r.rate, settled: ["won", "back", "partial", "lost", "refunded"].includes(r.state), bonusShare: r.bonusShare }))} address={me?.address || ""} />
+            <h2 style={{ marginTop: "1.75rem" }}>Payouts</h2>
             {rows.length === 0 ? (
               <div className="empty">
                 No challenges yet. <Link href="/#new">Start one</Link> and get paid for finishing.
@@ -185,7 +190,7 @@ export default function EarningsPage() {
                       <div className="meta">
                         <span>{money(r.c.deposit)} deposit</span>
                         <span>
-                          {Math.min(r.done, r.c.runsRequired)}/{r.c.runsRequired} runs
+                          {Math.min(r.done, r.c.runsRequired)}/{r.c.runsRequired} runs · {Math.round(r.rate * 100)}%
                         </span>
                         {r.state === "live" && <span className="st-open">{timeLeft(r.c.endsAt, now)}</span>}
                         {r.state === "ready" && <span>Ended · tap to pay out</span>}
@@ -202,6 +207,8 @@ export default function EarningsPage() {
                     <div className="earn-amt">
                       {r.state === "won" && <b className="win">+{money(r.payout)}</b>}
                       {r.state === "lost" && <b className="lose">-{money(r.c.deposit)}</b>}
+                      {r.state === "back" && <b>{money(r.payout)} back</b>}
+                      {r.state === "partial" && <b className="lose">{money(r.payout)} back</b>}
                       {r.state === "refunded" && <b>{money(r.payout)} back</b>}
                       {r.state === "ready" && <span className="muted small">{r.payout > 0 ? `${money(r.payout)} waiting` : "no payout"}</span>}
                       {r.state === "live" && <span className="muted small">in progress</span>}
@@ -226,6 +233,8 @@ export default function EarningsPage() {
               <span className="muted small">Available</span>
               <b>{balance === null ? "—" : money(balance)}</b>
             </div>
+            <Link href="/shop" className="btn block shop-link">🛍️ Spend it in the Shop</Link>
+            <div className="muted small" style={{ textAlign: "center", margin: "0.6rem 0 0" }}>or send it to your wallet</div>
             <label htmlFor="amt">Amount (USDC)</label>
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <input
@@ -263,6 +272,9 @@ export default function EarningsPage() {
               </p>
             )}
           </aside>
+        </div>
+        <div style={{ marginTop: "1.5rem" }}>
+          <AdSlot />
         </div>
         <p className="foot">Hackathon demo · Solana devnet · test money only</p>
         {!me && <NameGate onJoin={(n, wallet) => join(n, wallet)} />}

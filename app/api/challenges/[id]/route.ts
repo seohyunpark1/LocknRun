@@ -41,7 +41,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
  *   run    { address, km, sec, photo } -> log a GPS run with a photo proof
  *   strava { address, activityId }      -> import a run from Strava (verified with Strava's API)
  *   (a run counts if distance >= goal and the pace is human; its proof is stamped on Solana)
- *   sponsor { name, amount, url?, logo? } -> a brand adds a bonus to the pot (locked in escrow)
+ *   sponsor { name, amount, url?, logo?, tagline? } -> a brand adds a bonus (locked in escrow); tagline is its ad message
  *   settle {}                    -> after the deadline: pay finishers from escrow
  */
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -72,6 +72,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
     if (body.action === "sponsor") {
       const name = clean(body.name, 40);
+      const tagline = clean(body.tagline, 90);
       const amount = Number(body.amount);
       const url = typeof body.url === "string" && /^https:\/\/[^\s]{3,200}$/.test(body.url.trim()) ? body.url.trim() : undefined;
       const logo = typeof body.logo === "string" && body.logo ? body.logo : null;
@@ -84,7 +85,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         if (!c) return fail("Challenge not found", 404);
         if (c.status !== "active" || Date.now() >= c.endsAt) return fail("This challenge already ended.", 409);
         if ((c.sponsors || []).length >= MAX_SPONSORS) return fail("This challenge already has the maximum number of sponsors.", 409);
-        const prepared = await prepareDeposit(c, address, name, { amount, url, logo: logo || undefined });
+        const prepared = await prepareDeposit(c, address, name, { amount, url, logo: logo || undefined, tagline: tagline || undefined });
         return NextResponse.json({ ...prepared, challenge: c });
       });
     }

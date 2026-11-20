@@ -5,8 +5,25 @@ export type { Me } from "@/components/WalletProvider";
 
 let voiceChain: Promise<void> = Promise.resolve();
 
-/** Voice coach: ElevenLabs via /api/voice, with the browser's built-in voice as a fallback. Calls are queued. */
+const VOICE_KEY = "lockrun.voice";
+/** Voice is off unless the runner turns on the voice coach (run screen). */
+export function voiceOn() {
+  try {
+    return localStorage.getItem(VOICE_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+export function setVoice(on: boolean) {
+  try {
+    localStorage.setItem(VOICE_KEY, on ? "on" : "off");
+  } catch {}
+  if (!on && typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+}
+
+/** Voice coach: ElevenLabs via /api/voice, with the browser's built-in voice as a fallback. Calls are queued. Silent unless turned on. */
 export function speak(text: string) {
+  if (!voiceOn()) return Promise.resolve();
   voiceChain = voiceChain.then(() => speakNow(text)).catch(() => {});
   return voiceChain;
 }

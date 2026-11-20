@@ -5,10 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NameGate from "@/components/NameGate";
 import Dial from "@/components/Dial";
+import AdSlot from "@/components/AdSlot";
 import TypeValue from "@/components/TypeValue";
 import AppShell from "@/components/AppShell";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
-import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
+import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, partnerLogoSources, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
@@ -77,14 +78,28 @@ export default function Home() {
   return (
     <AppShell>
     <main className="wrap">
-      <section className="hero">
-        <h1>
-          Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
-        </h1>
-        <p className="lede">
-          Put money on your running goal with friends. Everyone who finishes gets their deposit back <b>plus</b> a share of
-          the quitters&apos; money. Your wallet signs a test USDC deposit into server-managed escrow on Solana.
-        </p>
+      <section className="hero hero-split">
+        <div>
+          <h1>
+            Bet on your own run.<br /><span className="hl">Finish, and get paid.</span>
+          </h1>
+          <p className="lede">
+            Put money on your running goal with friends. Hit 100% and get your deposit back <b>plus</b> prize money from
+            the runners who didn&apos;t. Your wallet signs a test USDC deposit into server-managed escrow on Solana.
+          </p>
+        </div>
+        <aside className="app-sponsors" aria-label="Partners">
+          <div className="muted small">Partners</div>
+          <div className="partner-grid">
+            {PARTNERS.map((pt) => (
+              <a key={pt.name} className="partner-tile" href={pt.url} target="_blank" rel="noreferrer noopener" title={pt.role}>
+                <PartnerLogo src={partnerLogoSources(pt)} name={pt.name} className="partner-tile-logo" />
+                <b>{pt.name}</b>
+              </a>
+            ))}
+          </div>
+          <a className="small app-sponsor-cta" href="#live">Want your brand here? Pick a challenge to sponsor →</a>
+        </aside>
       </section>
 
       <div className="stats">
@@ -102,9 +117,11 @@ export default function Home() {
         </div>
       </div>
 
+      <AdSlot />
+
       <div className="layout">
         <section>
-          <h2>Live challenges</h2>
+          <h2 id="live" style={{ scrollMarginTop: "5rem" }}>Live challenges</h2>
           {active.length === 0 && <div className="empty">No live challenges yet.</div>}
           <div className="list cards">
             {active.map((c) => (
@@ -181,7 +198,7 @@ export default function Home() {
       <section className="steps" id="how">
         <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs. Your 10 test USDC is locked in escrow.</div>
         <div className="step"><b>2 · Run and prove it</b>GPS and a voice coach track every km. Add a photo or a Strava run as proof.</div>
-        <div className="step"><b>3 · Split the pot</b>Finishers split the quitters&apos; deposits, paid out in about a second.</div>
+        <div className="step"><b>3 · Get rewarded</b>100% = deposit + prize. 85%+ = deposit back. Less = the % you finished.</div>
       </section>
 
       <section className="partners" aria-label="Powered by">
@@ -189,7 +206,7 @@ export default function Home() {
         <div className="partner-row">
           {PARTNERS.map((pt) => (
             <div className="partner" key={pt.name}>
-              <PartnerLogo src={pt.logo} name={pt.name} />
+              <PartnerLogo src={partnerLogoSources(pt)} name={pt.name} />
               <b>{pt.name}</b>
               <span>{pt.role}</span>
             </div>

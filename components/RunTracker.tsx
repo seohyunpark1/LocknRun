@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { pace } from "@/lib/config";
-import { speak } from "@/lib/client";
+import { setVoice, speak, voiceOn } from "@/lib/client";
 
 type Result = { counts: boolean; reason?: string };
 type Props = {
@@ -29,6 +29,8 @@ function spokenPace(secPerKm: number) {
 export default function RunTracker({ goalKm, demo, onFinish }: Props) {
   const [phase, setPhase] = useState<"idle" | "running" | "proof" | "saving" | "done">("idle");
   const [photo, setPhoto] = useState<string>("");
+  const [voice, setVoiceState] = useState(false);
+  useEffect(() => setVoiceState(voiceOn()), []);
   const final = useRef({ km: 0, sec: 0 });
   const [meters, setMeters] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -188,6 +190,16 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
 
   return (
     <div className="tracker">
+      <button
+        type="button"
+        className={`voice-toggle ${voice ? "on" : ""}`}
+        onClick={() => {
+          setVoice(!voice);
+          setVoiceState(!voice);
+        }}
+      >
+        {voice ? "Voice coach: on" : "Voice coach: off"}
+      </button>
       <div className="tracker-stats">
         <div>
           <div className="tk-big">{km.toFixed(2)}</div>

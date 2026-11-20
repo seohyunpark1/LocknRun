@@ -10,11 +10,11 @@ import { connection, escrowAddress } from './solana-server';
 import { MEMO_PROGRAM_ID, USDC_DECIMALS, USDC_MINT, Challenge, MAX_SPONSORS, SPONSOR_BONUSES } from './config';
 import { getChallenge, mutate, kvGet, kvSet, acquireLock, releaseLock } from './store';
 
-type Intent = { kind?: "join" | "sponsor"; amount?: number; url?: string; logo?: string; challengeId: string; address: string; name: string; transaction: string; message: string; blockhash: string; lastValidBlockHeight: number; signature?: string; confirmed?: boolean };
+type Intent = { kind?: "join" | "sponsor"; amount?: number; url?: string; logo?: string; tagline?: string; challengeId: string; address: string; name: string; transaction: string; message: string; blockhash: string; lastValidBlockHeight: number; signature?: string; confirmed?: boolean };
 export function requireDurableStorage() {
   if (process.env.VERCEL && !(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) && !(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)) throw new Error('Configure Redis before accepting wallet deposits.');
 }
-export async function prepareDeposit(c: Challenge, address: string, name: string, funding?: { amount: number; url?: string; logo?: string }) {
+export async function prepareDeposit(c: Challenge, address: string, name: string, funding?: { amount: number; url?: string; logo?: string; tagline?: string }) {
   requireDurableStorage();
   if (!funding && c.participants.some(p => p.address === address)) throw new Error('This wallet already joined.');
   if (funding && (!SPONSOR_BONUSES.includes(funding.amount) || (c.sponsors || []).length >= MAX_SPONSORS)) throw new Error('Sponsor amount or capacity is invalid.');
@@ -44,7 +44,7 @@ export async function prepareDeposit(c: Challenge, address: string, name: string
   const transaction = Buffer.from(tx.serialize()).toString('base64');
   const message = Buffer.from(tx.message.serialize()).toString('base64');
   const id = createHash('sha256').update(message).digest('hex');
-  const intent: Intent = { kind, amount, url: funding?.url, logo: funding?.logo, challengeId: c.id, address, name, transaction, message, ...lifetime };
+  const intent: Intent = { kind, amount, url: funding?.url, logo: funding?.logo, tagline: funding?.tagline, challengeId: c.id, address, name, transaction, message, ...lifetime };
   await kvSet(`deposit:${id}`, intent);
   return { intentId: id, transaction, summary: { kind, amount, recipient, mint: USDC_MINT, feeSol: fee.value / 1e9, feePayer: address, network: 'Solana Devnet', simulation: 'passed', transactionVersion: 0, preparedAt: Date.now(), minContextSlot: simulation.context?.slot } };
 }
@@ -100,7 +100,7 @@ export async function confirmDeposit(id: string, signed: string, address: string
     const updated = await mutate(c.id, x => {
       x.pendingDeposits = x.pendingDeposits?.filter(v => v !== id);
       if (intent.kind === "sponsor") {
-        x.sponsors = [...(x.sponsors || []), { address, name: intent.name, amount: intent.amount!, url: intent.url, logo: !!intent.logo, at: Date.now(), sig: intent.signature! }];
+        x.sponsors = [...(x.sponsors || []), { address, name: intent.name, amount: intent.amount!, url: intent.url, logo: !!intent.logo, tagline: intent.tagline, at: Date.now(), sig: intent.signature! }];
       } else {
         x.participants.push({ name: intent.name, address, joinedAt: Date.now(), joinSig: intent.signature!, runs: [] });
       }
@@ -118,5 +118,5 @@ export async function refreshDeposit(id: string, address: string) {
   if (!intent || intent.address !== address || intent.signature) throw new Error('Only an unsigned deposit can be refreshed by its wallet.');
   const c = await getChallenge(intent.challengeId);
   if (!c) throw new Error('Challenge not found.');
-  return prepareDeposit(c, address, intent.name, intent.kind === 'sponsor' ? { amount: intent.amount!, url: intent.url, logo: intent.logo } : undefined);
+  return prepareDeposit(c, address, intent.name, intent.kind === 'sponsor' ? { amount: intent.amount!, url: intent.url, logo: intent.logo, tagline: intent.tagline } : undefined);
 }

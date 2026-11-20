@@ -99,7 +99,7 @@ export default function StravaImport({ challengeId, address, onImported }: Props
       )}
       {msg && <p className="err">{msg}</p>}
       <div className="powered-strava">
-        <PartnerLogo src="/partners/strava.svg" name="Powered by Strava" className="powered-logo" />
+        <PartnerLogo src="/partners/strava.png" name="Powered by Strava" className="powered-logo" />
         <span className="small" style={{ color: "var(--faint)" }}>Powered by Strava</span>
       </div>
     </div>

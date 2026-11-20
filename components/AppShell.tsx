@@ -3,7 +3,8 @@ import WalletStatus from "./WalletStatus";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Challenge, explorerAddress, isFinisher, money } from "@/lib/config";
+import { Challenge, explorerAddress, money, partnerByName, partnerLogoSources } from "@/lib/config";
+import { computePayouts } from "@/lib/settle";
 import { speak, useMe } from "@/lib/client";
 import Celebration, { Win } from "./Celebration";
 import { PartnerLogo } from "./Logos";
@@ -31,6 +32,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [escrow, setEscrow] = useState<Escrow>({ address: null, balance: null });
   const [hash, setHash] = useState("");
   const [win, setWin] = useState<Win | null>(null);
+  const [gold, setGold] = useState(false); // owns the "Gold runner badge" from the Shop
+
+  useEffect(() => {
+    if (!me) return;
+    const check = () =>
+      fetch(`/api/shop?address=${me.address}`, { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => setGold((d.orders || []).some((o: { itemId: string }) => o.itemId === "gold-name")))
+        .catch(() => {});
+    check();
+    window.addEventListener("lockrun:refresh", check);
+    return () => window.removeEventListener("lockrun:refresh", check);
+  }, [me]);
 
   useEffect(() => {
     let stop = false;
@@ -54,15 +68,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         if (c.settledAt && Date.now() - c.settledAt > 7 * 86400_000) continue; // only recent payouts
         const p = c.participants.find((x) => x.address === address);
         if (!p) continue;
-        const finishers = c.participants.filter((x) => isFinisher(c, x)).length;
         localStorage.setItem(CELEBRATED, JSON.stringify([...seen, `${address}:${c.id}`]));
-        if ((p.payout || 0) <= 0) return; // didn't finish: no pop-up
-        const refund = finishers === 0;
-        setWin({ c, payout: p.payout || 0, paySig: p.paySig, refund });
+        if ((p.payout || 0) <= 0) return; // nothing back: no pop-up
+        const { payouts } = computePayouts(c);
+        const mine = payouts.find((x) => x.address === address)!;
+        const nobodyWon = !payouts.some((x) => x.tier === "full");
+        const kind = nobodyWon ? "refund" : mine.tier;
+        setWin({ c, payout: p.payout || 0, paySig: p.paySig, kind, rate: mine.rate });
         speak(
-          refund
-            ? `Your ${c.deposit} dollars are back in your account.`
-            : `Congratulations! You earned ${p.payout} dollars for finishing ${c.title}.`
+          kind === "full"
+            ? `Congratulations! You hit 100 percent and won ${p.payout} dollars.`
+            : kind === "safe"
+              ? `So close! Your ${c.deposit} dollars are back.`
+              : kind === "refund"
+                ? `Your ${c.deposit} dollars are back in your account.`
+                : `You got ${p.payout} dollars back.`
         );
         return;
       }
@@ -86,6 +106,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Challenges", icon: <IconList />, on: onHome && hash !== "#new" && hash !== "#how" },
     { href: "/#new", label: "New challenge", short: "New", icon: <IconPlus />, on: onHome && hash === "#new" },
     { href: "/earnings", label: "My earnings", short: "Earnings", icon: <IconWallet />, on: path === "/earnings" },
+    { href: "/shop", label: "Shop", icon: <IconBag />, on: path === "/shop" },
     { href: "/#how", label: "How it works", short: "How", icon: <IconInfo />, on: onHome && hash === "#how" },
   ];
 
@@ -115,12 +136,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <div className="side-built">
-          <PartnerLogo src="/partners/solana.svg" name="Solana" className="side-built-logo" />
+          <PartnerLogo src={partnerLogoSources(partnerByName("Solana"))} name="Solana" className="side-built-logo" />
           <div className="small">Built on <b>Solana</b></div>
           <div className="muted small">Every deposit, payout and run proof is recorded on-chain.</div>
         </div>
         <div className="side-foot">
           <WalletStatus />
+          {me && (
+            <div className="side-me">
+              <span className="avatar">{me.name.charAt(0).toUpperCase()}</span>
+              <div style={{ minWidth: 0 }}>
+                <div className="side-me-name">{me.name}{gold && <span className="gold-star" title="Gold runner">★</span>}</div>
+                <div className="muted small">{gold ? "Gold runner" : "Runner"}</div>
+              </div>
+            </div>
+          )}
           <div className="small" style={{ color: "var(--faint)", marginTop: "0.75rem" }}>Solana devnet · test money only</div>
         </div>
       </aside>
@@ -132,6 +162,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <span className="brand-dot" /> Lock&Run
           </Link>
           <WalletStatus />
+          {me && <span className="me">{me.name}{gold && <span className="gold-star">★</span>}</span>}
         </header>
 
         {children}
@@ -140,7 +171,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* ---------- Phone version: bottom tab bar ---------- */}
         <nav className="tabbar">
-          {nav.map((n) => (
+          {[nav[0], nav[2], nav[1], nav[3], nav[4]].map((n) => ( /* "New" sits in the middle on phones */
             <Link key={n.href} href={n.href} className={`tab ${n.on ? "on" : ""} ${n.short === "New" ? "tab-new" : ""}`} onClick={() => setHash(n.href.split("#")[1] ? "#" + n.href.split("#")[1] : "")}>
               {n.icon}
               <span>{n.short || n.label}</span>
@@ -172,6 +203,14 @@ function IconInfo() {
     <svg {...svg} aria-hidden>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
+    </svg>
+  );
+}
+function IconBag() {
+  return (
+    <svg {...svg} aria-hidden>
+      <path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 8z" />
+      <path d="M9 10V7a3 3 0 0 1 6 0v3" />
     </svg>
   );
 }

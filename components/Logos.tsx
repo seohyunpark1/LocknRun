@@ -2,12 +2,19 @@
 import { useState } from "react";
 import { Challenge, Sponsor, sponsorLogoUrl } from "@/lib/config";
 
-/** Official partner logo from /public/partners; shows nothing if the file hasn't been added yet. */
-export function PartnerLogo({ src, name, className = "partner-logo" }: { src: string; name: string; className?: string }) {
-  const [ok, setOk] = useState(true);
-  if (!ok) return null;
-  // eslint-disable-next-line @next/next/no-img-element
-  return <img className={className} src={src} alt={`${name} logo`} onError={() => setOk(false)} />;
+/**
+ * Partner logo: tries each source in order (official file in /public/partners, then the company's site icon).
+ * Shows nothing if none load, so the name next to it carries the brand.
+ */
+export function PartnerLogo({ src, name, className = "partner-logo" }: { src: string | string[]; name: string; className?: string }) {
+  const sources = Array.isArray(src) ? src : [src];
+  const [i, setI] = useState(0);
+  // Nothing loaded: show a neat initial badge so there's always a mark, never just words.
+  if (i >= sources.length) return <span className={`${className} logo-fallback`} aria-hidden>{name.charAt(0)}</span>;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img className={className} src={sources[i]} alt={`${name} logo`} referrerPolicy="no-referrer" onError={() => setI(i + 1)} />
+  );
 }
 
 /** A sponsor's uploaded logo, or their first letter if they didn't upload one. */

@@ -101,3 +101,60 @@ Wallet approval uses a fresh unsigned v0 message and `simulateTransaction` with 
 Before approval, the browser decodes the transaction and checks the exact transfer amount, mint, sender, recipient, fee payer, allowed instructions and required signers. Altered wallet-returned messages are rejected before submission. Backend operations verify the actual RPC genesis hash is Solana Devnet and enforce the configured Circle Devnet mint. Preflight remains enabled when broadcasting.
 
 Regression tests reproduce the former simulation/message mismatch, check v0 byte equality, reject Mainnet RPCs and altered transfer/authority instructions, and retain recovery of legacy pending deposits. These checks do **not** certify the app as audited or guarantee Phantom's own warning disappears. Test the new preview on the deployed domain; cancel instead of approving if Phantom still warns, and use its domain/transaction review process if needed. Reference: https://docs.phantom.com/recipes/transactions/resolve-transaction-simulation-warnings.
+
+### Rewards (`lib/settle.ts`), Challengers-style
+Everyone locks the same deposit `D`. Your **achievement rate** is the share of required runs you completed.
+
+| Achievement | You get back |
+|---|---|
+| **100%** | `D` + an equal share of the **prize pool** |
+| **85–99%** | `D` (full deposit, no prize) |
+| **Below 85%** | `D × rate` (e.g. 1 of 2 runs → 50% of `D`) |
+
+**Prize pool** = everything the below-85% runners don't get back + any sponsor bonus, split equally among the
+100% runners. If nobody reaches 100%, everyone gets `D` back and sponsors get their bonus back. Amounts are whole
+cents, rounded down; leftover cents stay in escrow.
+
+Example: 3 runners × $20 with a $75 sponsor bonus, 2 runs required. Maria 2/2, Daniel 1/2, Kevin 0/2 →
+Daniel gets $10 back, Kevin $0, and Maria gets $20 + $30 + $75 = **$125**. Pot $135, all paid out.
+
+### Badges
+The earnings page awards badges: First 100%, Hot streak (3 perfect in a row), Perfect five, Sponsor-backed,
+10K club and Marathoner (counted distance).
+
+### Ads
+Ad spots on the home page, challenge page and earnings page show real sponsors of live challenges (logo, name,
+their own ad message, link), always labeled "Sponsored", rotating every few seconds. With no sponsors yet, the spot
+advertises sponsoring a challenge. Sponsors write their ad message when they add a bonus.
+
+### Sponsored challenges
+Brands (a running store, a campus club) can add a **bonus** of $10, $25, $50 or $100 to any live challenge, with a
+logo and an ad message. The bonus is locked in the same escrow (memo `LockRun|sponsor|<challenge>`), goes into the
+prize pool for 100% runners, and is returned to the sponsor if nobody hits 100%. Sponsored challenges show a
+"+$50 bonus · Sponsored by …" badge, are listed first, and the top sponsor's logo leads the payout pop-up.
+## Shop: spend what you won
+
+Like Challengers' reward store, runners can spend their winnings inside the app (`/shop`, in the sidebar and the
+phone tab bar):
+
+- **Sponsor rewards:** shoe discounts, gift cards, energy gels, socks (demo brands: Peak Shoes, Austin Running Co.)
+- **Lock&Run items:** a gold runner badge (shows a ★ next to your name) and a running cap
+
+**How paying works:** the server builds a USDC transfer from the runner's wallet to the Lock&Run store wallet with a
+memo `LockRun|shop|<orderId>`, signs only as fee payer, and remembers the exact transaction. The runner's browser
+signs it with their own key. The server only accepts **that exact transaction** for that order, so a runner can't
+change the price and nobody else can spend their money. The price always comes from the server's catalog
+(`lib/shop.ts`). After payment the runner gets a **coupon code** (e.g. `ARC-4352-5419`), saved under **My rewards**
+with the Solana receipt.
+
+**Why it matters for the business:** sponsors don't just pay for logos. They sell products to runners right after
+they've won, and that money goes back to the brands that funded the bonus. Lock&Run can take a cut of each sale.
+
+## Sponsor and partner logos
+
+- Sponsors can upload a PNG/JPG logo when they add a bonus. It is shrunk to 256 px in the browser and shown on the
+  challenge card, the challenge banner, the Sponsors card and the Earnings page. (SVG uploads are refused for safety.)
+- Partners (Solana, Circle, QuickNode, Strava) appear in a "Partners" card at the top of the home page, the
+  "Powered by" strip, the sidebar and the payout pop-up. Each logo is the company's own site icon, loaded from its
+  domain; drop official files into `public/partners/` for sharper logos (see the README there).
+
