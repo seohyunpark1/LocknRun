@@ -118,7 +118,7 @@ and 5 minutes to 6 months (pick Min / Hour / Day / Week / Month, then the number
 bonuses earned (with the sponsor's logo), money **locked in live challenges**, and every payout with its receipt.
 
 **Congratulations pop-up:** when a challenge pays out, the runner sees a full-screen "Congratulations, you earned $X"
-card on whatever page they're on, with confetti, a breakdown (deposit back, quitters' share, sponsor bonus with the
+card on whatever page they're on, led by the top sponsor's logo ("Presented by …"), with confetti, a breakdown (deposit back, quitters' share, sponsor bonus with the
 sponsor's logo), "Paid out on Solana" with the receipt, and a voice announcement. It shows once per challenge.
 
 **Cash out:** runners can send their USDC to any Solana wallet (e.g. Phantom). The server builds the transfer and signs

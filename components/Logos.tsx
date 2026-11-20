@@ -11,7 +11,7 @@ export function PartnerLogo({ src, name, className = "partner-logo" }: { src: st
 }
 
 /** A sponsor's uploaded logo, or their first letter if they didn't upload one. */
-export function SponsorMark({ c, index, s, size = "md" }: { c: Challenge; index: number; s: Sponsor; size?: "sm" | "md" }) {
+export function SponsorMark({ c, index, s, size = "md" }: { c: Challenge; index: number; s: Sponsor; size?: "sm" | "md" | "lg" }) {
   const [ok, setOk] = useState(true);
   return (
     <span className={`sponsor-logo ${size}`} title={s.name}>

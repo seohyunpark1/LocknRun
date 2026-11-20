@@ -21,6 +21,10 @@ const COLORS = ["#22c55e", "#16a34a", "#86efac", "#fde047", "#34d399", "#bbf7d0"
 export default function Celebration({ win, name, onClose }: { win: Win; name: string; onClose: () => void }) {
   const { c, payout, paySig, refund } = win;
   const b = breakdown(c, payout);
+  // The sponsor who put in the most is front and center: they're paying for this moment.
+  const ranked = (c.sponsors || []).map((s, index) => ({ s, index })).sort((x, y) => y.s.amount - x.s.amount);
+  const top = ranked[0];
+  const others = ranked.length - 1;
   const confetti = useMemo(
     () =>
       Array.from({ length: 36 }, (_, i) => ({
@@ -55,8 +59,23 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
         </div>
       )}
       <div className="celebrate-card">
-        <div className="celebrate-medal" aria-hidden>{refund ? "↩" : "🏅"}</div>
-        <div className="muted small">{refund ? "Deposit returned" : "Challenge complete"}</div>
+        {top ? (
+          <>
+            <div className="celebrate-sponsor-logo">
+              <SponsorMark c={c} index={top.index} s={top.s} size="lg" />
+            </div>
+            <div className="muted small">
+              {refund ? "Deposit returned" : "Presented by"} <b className="celebrate-presenter">{top.s.name}</b>
+              {others > 0 && <> + {others} more</>}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="celebrate-applogo" src="/icon-192.png" alt="Lock&Run" />
+            <div className="muted small">{refund ? "Deposit returned" : "Challenge complete"}</div>
+          </>
+        )}
         <h2 className="celebrate-title">{refund ? `Your money is back, ${name}` : `Congratulations, ${name}!`}</h2>
         <div className="celebrate-amt">+{money(payout)}</div>
         <div className="muted">{refund ? "Nobody finished, so every deposit was refunded." : `You finished “${c.title}” and got paid.`}</div>

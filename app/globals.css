@@ -414,3 +414,8 @@ label { display: block; font-weight: 500; font-size: 0.85rem; color: var(--muted
 .celebrate-chain { display: flex; justify-content: center; align-items: center; gap: 0.4rem; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid var(--line); }
 .celebrate-chain-logo { height: 1.1rem; width: auto; }
 .celebrate-chain-logo + b { display: none; } /* hide the text name once the official logo file is added */
+.celebrate-sponsor-logo { margin: 0 auto 0.6rem; width: fit-content; padding: 0.4rem; border-radius: 1.4rem; background: #fff; box-shadow: 0 0 0 8px rgba(34, 197, 94, .14), 0 12px 30px -14px rgba(22, 101, 52, .5); }
+.sponsor-logo.lg { width: 5rem; height: 5rem; border-radius: 1.1rem; font-size: 2rem; }
+.sponsor-logo.lg img { padding: 0.35rem; }
+.celebrate-presenter { color: var(--ink); }
+.celebrate-applogo { width: 4.5rem; height: 4.5rem; border-radius: 1.1rem; display: block; margin: 0 auto 0.75rem; box-shadow: 0 0 0 8px rgba(34, 197, 94, .14); }
