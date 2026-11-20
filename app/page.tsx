@@ -3,22 +3,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import NameGate from "@/components/NameGate";
+import Dial from "@/components/Dial";
 import { Challenge, DEPOSITS, DURATIONS, GOAL_KMS, RUNS_REQUIRED, countedRuns, explorerAddress, money } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
-
-function Chips<T extends number>({ options, value, onChange, fmt }: { options: T[]; value: T; onChange: (v: T) => void; fmt: (v: T) => string }) {
-  return (
-    <div className="chips">
-      {options.map((o) => (
-        <button key={o} className={`chip ${o === value ? "on" : ""}`} onClick={() => onChange(o)}>
-          {fmt(o)}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export default function Home() {
   const router = useRouter();
@@ -142,12 +131,9 @@ export default function Home() {
           <h2>Start a challenge</h2>
           <label>Name it (optional)</label>
           <input className="input" maxLength={60} placeholder="Morning 3K crew" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <label>Distance per run</label>
-          <Chips options={GOAL_KMS} value={goalKm} onChange={setGoalKm} fmt={(v) => `${v} km`} />
-          <label>Runs to finish</label>
-          <Chips options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} fmt={(v) => `${v}×`} />
-          <label>Deposit</label>
-          <Chips options={DEPOSITS} value={deposit} onChange={setDeposit} fmt={(v) => `$${v}`} />
+          <Dial label="Distance per run" options={GOAL_KMS} value={goalKm} onChange={setGoalKm} format={(v) => `${v} km`} />
+          <Dial label="Runs to finish" options={RUNS_REQUIRED} value={runsRequired} onChange={setRuns} format={(v) => `${v} run${v > 1 ? "s" : ""}`} />
+          <Dial label="Deposit" options={DEPOSITS} value={deposit} onChange={setDeposit} format={(v) => `$${v}`} tick={(v) => `$${v}`} />
           <label>Ends in</label>
           <div className="chips">
             {DURATIONS.map((d) => (

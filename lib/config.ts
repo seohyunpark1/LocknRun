@@ -7,9 +7,9 @@ export const USDC_DECIMALS = 6;
 export const MEMO_PROGRAM_ID = "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr";
 
 // Challenge options (server only accepts these).
-export const DEPOSITS = [5, 10, 20];
-export const GOAL_KMS = [1, 3, 5, 10];
-export const RUNS_REQUIRED = [1, 2, 3, 5];
+export const DEPOSITS = [1, 2, 3, 5, 10, 15, 20, 25, 30, 40, 50];
+export const GOAL_KMS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 21];
+export const RUNS_REQUIRED = [1, 2, 3, 4, 5, 6, 7];
 export const DURATIONS: { label: string; minutes: number }[] = [
   { label: "15 min", minutes: 15 },
   { label: "1 day", minutes: 60 * 24 },
