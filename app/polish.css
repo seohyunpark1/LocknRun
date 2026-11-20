@@ -123,3 +123,50 @@ html { scroll-behavior: smooth; }
 .cheer-n { font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .feed-more { margin-top: 0.5rem; }
 @keyframes cheer-pop { from { transform: scale(1.5); } to { transform: none; } }
+
+/* ---------- Challenge page: Today bar (components/TodayBar) ---------- */
+.hero2 .today { grid-column: 1 / -1; order: 3; }
+@media (max-width: 760px) {
+  .hero2 > div:first-child { order: 0; }
+  .hero2 .today { order: 1; }
+  .hero2 .potbox { order: 2; }
+}
+.today { display: grid; gap: 0.7rem; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); padding: 0.85rem 1rem; box-shadow: var(--card-shadow); }
+.today-done { border-color: #86efac; background: #f0fdf4; }
+.today-review { border-color: #fde68a; background: #fffbeb; }
+.today-top { display: flex; align-items: center; gap: 0.75rem; }
+.today-icon { width: 2.5rem; height: 2.5rem; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; font-weight: 700; font-size: 1.15rem; background: var(--soft); border: 1px solid var(--line); }
+.today-done .today-icon { background: var(--green-grad); color: #fff; border: 0; }
+.today-review .today-icon { background: #fef3c7; border-color: #fcd34d; color: #854d0e; }
+.today-text { display: grid; gap: 0.1rem; min-width: 0; flex: 1; }
+.today-text b { font-size: 1rem; }
+.today-text .small { color: var(--muted); }
+.today-go { flex-shrink: 0; }
+.today-progress { display: flex; align-items: center; gap: 0.75rem; }
+.today-progress .bar { flex: 1; height: 0.55rem; }
+.today-count { white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+.today-count b { color: var(--ink); }
+
+/* Phones: pot + label on the left, a compact invite button on the right (was a big button above the action). */
+@media (max-width: 760px) {
+  .potbox { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 0.75rem; }
+  .potbox .pot-amt { grid-column: 1; }
+  .potbox .pot-label { grid-column: 1; text-align: left; }
+  .potbox .btn { grid-column: 2; grid-row: 1 / span 2; min-height: 2.5rem; padding: 0.45rem 0.8rem; font-size: 0.85rem; }
+}
+
+/* ---------- Collapsible details ("How rewards work", fees, check-in rules) ---------- */
+details.more { margin: 0.5rem 0 0.75rem; }
+details.more summary { cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 0.35rem; min-height: var(--tap); font-size: 0.9rem; font-weight: 600; color: var(--green-dark); }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::before { content: "›"; display: inline-block; transition: transform .15s; font-size: 1.1rem; line-height: 1; }
+details.more[open] summary::before { transform: rotate(90deg); }
+details.more p { margin: 0.1rem 0 0; line-height: 1.55; }
+
+/* ---------- Rewards panel: rows with dividers instead of cards inside a card ---------- */
+.soft .tier-row { background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding-left: 0; padding-right: 0; }
+.soft .tier-row:last-child { border-bottom: 0; }
+.soft .tier-row.full { background: transparent; }
+
+/* No single orphaned word at the end of paragraphs. */
+.lede, .muted, p { text-wrap: pretty; }

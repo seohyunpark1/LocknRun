@@ -17,3 +17,22 @@ export function photoFallback(e: { currentTarget: HTMLImageElement }) {
     img.title = "Sign in as a runner in this challenge to see photos";
   }
 }
+
+import { roomDay } from "./config";
+
+/**
+ * When the challenge's day rolls over, in the viewer's own clock: "midnight" if they share the
+ * challenge's time zone, otherwise e.g. "6:00 PM your time". Client-side only (uses the browser zone).
+ */
+export function newDayTime(timeZone = "UTC", now = Date.now()) {
+  const today = roomDay(now, timeZone);
+  let t = now;
+  for (let i = 0; i < 26 * 4 && roomDay(t, timeZone) === today; i++) t += 15 * 60_000; // first 15-min mark past the rollover
+  while (roomDay(t - 60_000, timeZone) !== today) t -= 60_000; // back up to the exact minute
+  const d = new Date(t);
+  if (d.getHours() === 0 && d.getMinutes() === 0) return "midnight"; // same clock as the challenge
+  return `${d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} your time`;
+}
+
+/** "a new day starts at 6:00 PM your time" / "a new day starts at midnight". */
+export const newDayLabel = (timeZone?: string, now?: number) => `a new day starts at ${newDayTime(timeZone || "UTC", now)}`;

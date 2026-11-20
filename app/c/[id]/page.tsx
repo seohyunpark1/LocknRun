@@ -6,7 +6,8 @@ import { useParams } from "next/navigation";
 import NameGate from "@/components/NameGate";
 import AppShell from "@/components/AppShell";
 import Money from "@/components/Money";
-import { photoFallback } from "@/lib/ui";
+import { newDayLabel, photoFallback } from "@/lib/ui";
+import TodayBar from "@/components/TodayBar";
 import CheerFeed from "@/components/CheerFeed";
 import RunTracker from "@/components/RunTracker";
 import SponsorBox from "@/components/SponsorBox";
@@ -142,7 +143,7 @@ export default function ChallengePage() {
             Run <b>{c.goalKm} km</b>, <b>{c.runsRequired} time{c.runsRequired > 1 ? "s" : ""}</b> before the clock runs out.
             Stake <b>{money(c.deposit)}</b>. Finish and share the pool
             {bonus > 0 ? <>, which includes a <b>{money(bonus)} sponsor bonus</b></> : null}.
-            One run counts per day · days reset at midnight ({c.timeZone || "UTC"}).
+            One run counts per day; {newDayLabel(c.timeZone, now)}.
           </p>
           {bonus > 0 && (
             <div className="sponsor-banner">
@@ -156,6 +157,7 @@ export default function ChallengePage() {
             </div>
           )}
         </div>
+        <TodayBar c={c} now={now} />
         <div className="potbox">
           <div className="pot-amt"><Money n={pot} /></div>
           <div className="pot-label">in the pot · {c.participants.length} runner{c.participants.length > 1 ? "s" : ""}</div>
@@ -180,10 +182,18 @@ export default function ChallengePage() {
             <div className="card" style={{ marginBottom: "1.25rem" }}>
               <h2>Join this challenge</h2>
               <p className="muted" style={{ marginTop: 0 }}>
-                Stake {money(c.deposit)}. Finish {c.runsRequired}× {c.goalKm} km (one run per day, days reset at midnight {c.timeZone || "UTC"}) and you get it back
-                {c.participants.length > 0 ? (rewardModeOf(c) === "fraction" ? ", plus a prize from what others don't get back" : ", plus a share of what anyone who doesn't finish forfeits") : ""}
-                {bonus > 0 ? ` and the ${money(bonus)} sponsor bonus` : ""}.{rewardModeOf(c) === "fraction" ? " Finish at least 85% to keep your whole stake." : " If no one finishes, every stake is refunded."}
+                Stake {money(c.deposit)}. Finish {c.runsRequired}× {c.goalKm} km, one run a day, to get it back{c.participants.length > 0 || bonus > 0 ? " plus your share of the pool" : ""}.
               </p>
+              <details className="more">
+                <summary>How rewards work</summary>
+                <p className="muted small">
+                  One check-in counts per day, and {newDayLabel(c.timeZone, now)}.
+                  {rewardModeOf(c) === "fraction"
+                    ? " Finish 100% to get your stake back plus a prize from what others don't get back. Finish at least 85% to keep your whole stake; less gets back the share you finished."
+                    : " If you finish, you get your stake back plus a share of the stakes of anyone who doesn't. If no one finishes, every stake is refunded."}
+                  {bonus > 0 ? ` The ${money(bonus)} sponsor bonus is shared among finishers.` : ""}
+                </p>
+              </details>
               <button className="btn primary block" disabled={!!busy} onClick={() => (me ? act("join") : openConnect())}>
                 {busy === "join" ? "Locking your stake…" : me ? `Join & lock ${money(c.deposit)}` : `Connect wallet to join`}
               </button>
@@ -191,7 +201,7 @@ export default function ChallengePage() {
           )}
 
           {live && mine && (
-            <div className="card" style={{ marginBottom: "1.25rem" }}>
+            <div className="card" id="checkin" style={{ marginBottom: "1.25rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                 <h2>Daily check-in</h2>
                 <span className="muted small">
@@ -233,7 +243,7 @@ export default function ChallengePage() {
               <span className="lb-prog">Progress</span>
               <span className="lb-pace">Best pace</span>
               <span className="lb-rcpt">Receipts</span>
-              <span className="lb-pay">Payout</span>
+              <span className="lb-pay">{live ? "If it ended now" : "Payout"}</span>
             </div>
             {board.map((p, i) => {
               const done = countedRuns(p);
@@ -258,7 +268,7 @@ export default function ChallengePage() {
                       <span className="phone-only"> best · {p.runs.length} run{p.runs.length === 1 ? "" : "s"}</span>
                     </span>
                     <span className="lb-rcpt">
-                      <a href={explorerTx(p.joinSig)} target="_blank" rel="noreferrer">deposit ↗</a>
+                      <a href={explorerTx(p.joinSig)} target="_blank" rel="noreferrer" title="Stake receipt on Solana">receipt ↗</a>
                       {p.paySig && (
                         <a href={explorerTx(p.paySig)} target="_blank" rel="noreferrer">payout ↗</a>
                       )}
@@ -306,7 +316,7 @@ export default function ChallengePage() {
               <div>
                 <b>Stake back + prize</b>
                 <div className="muted small">
-                  {prizeNow > 0 ? `${c.status === "settled" ? "Prize paid" : "Prize right now"}: +${money(prizeNow)} each` : c.status === "settled" ? "Nobody hit 100%, so everyone got their deposit back" : "Prize grows as others miss runs or sponsors join"}
+                  {prizeNow > 0 ? `${c.status === "settled" ? "Prize paid" : "Prize right now"}: +${money(prizeNow)} each` : c.status === "settled" ? "Nobody hit 100%, so everyone got their stake back" : "Prize grows as others miss runs or sponsors join"}
                 </div>
               </div>
             </div>
@@ -325,10 +335,13 @@ export default function ChallengePage() {
               </div>
             </div>
           </div>
-          <p className="muted small" style={{ lineHeight: 1.5 }}>
-            The prize pool is what others don&apos;t get back plus any sponsor bonus, split among everyone at 100%. If nobody
-            reaches 100%, everyone is refunded and sponsors get their bonus back.
-          </p>
+          <details className="more">
+            <summary>Where the prize comes from</summary>
+            <p className="muted small">
+              The prize pool is what others don&apos;t get back plus any sponsor bonus, split among everyone at 100%. If nobody
+              reaches 100%, everyone is refunded and sponsors get their bonus back.
+            </p>
+          </details>
             </>
           ) : (
             <>
@@ -361,10 +374,13 @@ export default function ChallengePage() {
               </div>
             </div>
           </div>
-          <p className="muted small" style={{ lineHeight: 1.5 }}>
-            A {Math.round(PLATFORM_FEE_RATE * 100)}% fee is taken from the stakes of runners who don&apos;t finish. Nothing is taken when everyone finishes or no one does.
-            Those who don&apos;t finish forfeit their stake.
-          </p>
+          <details className="more">
+            <summary>Fees</summary>
+            <p className="muted small">
+              A {Math.round(PLATFORM_FEE_RATE * 100)}% fee is taken from the stakes of runners who don&apos;t finish. Nothing is taken when everyone finishes or no one does.
+              Runners who don&apos;t finish lose their stake.
+            </p>
+          </details>
             </>
           )}
           {mine && myProjected && c.status !== "settled" && (
@@ -373,10 +389,13 @@ export default function ChallengePage() {
               {myProjected.finisher ? "" : `. Complete all ${c.runsRequired} to ${rewardModeOf(c) === "fraction" ? "earn the prize" : "finish"}!`}
             </div>
           )}
-          <p className="muted small" style={{ marginTop: 14 }}>
+          <details className="more">
+            <summary>What counts as a check-in</summary>
+            <p className="muted small">
             A check-in is approved when your run reaches {c.goalKm} km at a running pace and comes with your live photo (or is imported from Strava). Very fast runs go to
             review; they hold that day&apos;s slot until decided. Every check-in is stamped on Solana.
-          </p>
+            </p>
+          </details>
         </aside>
         <SponsorBox c={c} live={live} onUpdated={setC} invite={invite} />
         <AdSlot variant="card" />
