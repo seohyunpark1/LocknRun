@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     const minutes = Number(b.minutes);
     if (!GOAL_KMS.includes(goalKm) || !RUNS_REQUIRED.includes(runsRequired) || !DEPOSITS.includes(deposit))
       return NextResponse.json({ error: "Pick the challenge options." }, { status: 400 });
-    if (!DURATIONS.some((d) => d.minutes === minutes))
+    if (!DURATIONS.includes(minutes))
       return NextResponse.json({ error: "Pick how long the challenge lasts." }, { status: 400 });
     try {
       new PublicKey(b.address);

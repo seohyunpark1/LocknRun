@@ -11,11 +11,17 @@ export function useMe() {
   const [me, setMe] = useState<Me | null>(null);
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(ME_KEY);
-      if (saved) setMe(JSON.parse(saved));
-    } catch {}
+    const read = () => {
+      try {
+        const saved = localStorage.getItem(ME_KEY);
+        if (saved) setMe(JSON.parse(saved));
+      } catch {}
+    };
+    read();
     setReady(true);
+    // Keep every component using useMe (page + app shell) in sync after sign-up.
+    window.addEventListener("lockrun:me", read);
+    return () => window.removeEventListener("lockrun:me", read);
   }, []);
   function join(name: string) {
     // Hackathon demo: key in localStorage. Production: embedded wallet with email / passkey login.
@@ -24,6 +30,7 @@ export function useMe() {
     const m = { name: name.trim().slice(0, 24), address: kp.publicKey.toBase58() };
     localStorage.setItem(ME_KEY, JSON.stringify(m));
     setMe(m);
+    window.dispatchEvent(new Event("lockrun:me"));
   }
   return { me, ready, join };
 }

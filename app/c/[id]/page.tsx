@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import NameGate from "@/components/NameGate";
+import AppShell from "@/components/AppShell";
 import RunTracker from "@/components/RunTracker";
 import StravaImport from "@/components/StravaImport";
 import { Challenge, Run, countedRuns, explorerTx, isFinisher, money, pace } from "@/lib/config";
@@ -105,12 +106,20 @@ export default function ChallengePage() {
   if (!ready) return null;
   if (notFound)
     return (
-      <main className="wrap">
-        <Link href="/" className="brand">← Lock&Run</Link>
-        <div className="empty" style={{ marginTop: 30 }}>Challenge not found.</div>
-      </main>
+      <AppShell>
+        <main className="wrap">
+          <div className="empty" style={{ marginTop: "2rem" }}>
+            Challenge not found. <Link href="/">Back to challenges</Link>
+          </div>
+        </main>
+      </AppShell>
     );
-  if (!c) return <main className="wrap"><p className="muted">Loading…</p></main>;
+  if (!c)
+    return (
+      <AppShell>
+        <main className="wrap"><p className="muted">Loading…</p></main>
+      </AppShell>
+    );
 
   const live = c.status === "active" && now < c.endsAt;
   const mine = c.participants.find((p) => p.address === me?.address);
@@ -120,13 +129,9 @@ export default function ChallengePage() {
   const board = [...c.participants].sort((a, b) => countedRuns(b) - countedRuns(a));
 
   return (
+    <AppShell>
     <main className="wrap">
-      <div className="top">
-        <Link href="/" className="brand" style={{ textDecoration: "none" }}>
-          <span className="brand-dot" /> Lock&Run
-        </Link>
-        {me && <div className="me">{me.name}</div>}
-      </div>
+      <Link href="/" className="back small">← All challenges</Link>
 
       <div className="hero2">
         <div>
@@ -140,11 +145,10 @@ export default function ChallengePage() {
           </p>
         </div>
         <div className="potbox">
-          <div className="pot-amt" style={{ fontSize: 54 }}>{money(pot)}</div>
+          <div className="pot-amt">{money(pot)}</div>
           <div className="pot-label">in the pot · {c.participants.length} runner{c.participants.length > 1 ? "s" : ""}</div>
           <button
             className="btn ghost"
-            style={{ marginTop: 12 }}
             onClick={() => {
               navigator.clipboard?.writeText(window.location.href.split("?")[0]);
               setCopied(true);
@@ -157,10 +161,10 @@ export default function ChallengePage() {
       </div>
       {err && <p className="err">{err}</p>}
 
-      <div className="layout" style={{ marginTop: 22 }}>
+      <div className="layout challenge-layout" style={{ marginTop: "1.5rem" }}>
         <section>
           {live && !mine && (
-            <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ marginBottom: "1.25rem" }}>
               <h2>Join this challenge</h2>
               <p className="muted" style={{ marginTop: 0 }}>
                 Lock {money(c.deposit)}. Finish {c.runsRequired}× {c.goalKm} km and you get it back
@@ -173,7 +177,7 @@ export default function ChallengePage() {
           )}
 
           {live && mine && (
-            <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ marginBottom: "1.25rem" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10 }}>
                 <h2>Your run</h2>
                 <span className="muted small">
@@ -190,7 +194,7 @@ export default function ChallengePage() {
           )}
 
           {!live && c.status !== "settled" && (
-            <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ marginBottom: "1.25rem" }}>
               <h2>Time&apos;s up! Ready to pay out</h2>
               <p className="muted" style={{ marginTop: 0 }}>
                 {payouts.filter((p) => p.finisher).length} of {c.participants.length} finished. Anyone can trigger the payout;
@@ -203,7 +207,15 @@ export default function ChallengePage() {
           )}
 
           <h2>Leaderboard</h2>
-          <div className="list">
+          <div className="list board">
+            <div className="lb lb-head" aria-hidden>
+              <span className="lb-rank" />
+              <span className="lb-name">Runner</span>
+              <span className="lb-prog">Progress</span>
+              <span className="lb-pace">Best pace</span>
+              <span className="lb-rcpt">Receipts</span>
+              <span className="lb-pay">Payout</span>
+            </div>
             {board.map((p, i) => {
               const done = countedRuns(p);
               const fin = isFinisher(c, p);
@@ -211,48 +223,50 @@ export default function ChallengePage() {
               const best = p.runs.filter((r) => r.counts).sort((a, b) => a.sec / a.km - b.sec / b.km)[0];
               return (
                 <div key={p.address} className={`lb ${p.address === me?.address ? "mine" : ""}`}>
-                  <div className={`rank ${fin ? "fin" : ""}`}>{fin ? "✓" : i + 1}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "0.6rem", fontWeight: 600 }}>
-                      <span>{p.address === me?.address ? `${p.name} (you)` : p.name}</span>
-                      <span>
-                        {Math.min(done, c.runsRequired)}/{c.runsRequired}
-                      </span>
-                    </div>
-                    <div className="bar thin" style={{ margin: "0.5rem 0" }}>
+                  <div className={`rank lb-rank ${fin ? "fin" : ""}`}>{fin ? "✓" : i + 1}</div>
+                  <div className="lb-name">{p.address === me?.address ? `${p.name} (you)` : p.name}</div>
+                  <div className="lb-prog">
+                    <span className="lb-count">
+                      {Math.min(done, c.runsRequired)}/{c.runsRequired}
+                    </span>
+                    <div className="bar thin">
                       <span style={{ width: `${Math.min(100, (done / c.runsRequired) * 100)}%` }} />
                     </div>
-                    <div className="meta">
-                      <span>{p.runs.length} run{p.runs.length === 1 ? "" : "s"} logged</span>
-                      {best && <span>best pace {pace(best.sec / best.km)}/km</span>}
-                      <a href={explorerTx(p.joinSig)} target="_blank" rel="noreferrer">deposit receipt ↗</a>
-                      {p.paySig && (
-                        <a href={explorerTx(p.paySig)} target="_blank" rel="noreferrer">payout receipt ↗</a>
-                      )}
-                    </div>
-                    {p.runs.length > 0 && (
-                      <div className="proofs">
-                        {p.runs.slice(-6).reverse().map((r) => (
-                          <button key={r.id} className={`proof-chip ${r.counts ? "" : "nope"}`} onClick={() => setViewRun({ run: r, name: p.name })} title="See proof">
-                            {r.photo ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img src={`/api/photos/${r.id}`} alt="" loading="lazy" />
-                            ) : (
-                              <span className="strava-mark" aria-hidden />
-                            )}
-                            <span>{r.km} km</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
                   </div>
-                  <div className="payout">
+                  <div className="lb-meta">
+                    <span className="lb-pace">
+                      {best ? `${pace(best.sec / best.km)}/km` : "—"}
+                      <span className="phone-only"> best · {p.runs.length} run{p.runs.length === 1 ? "" : "s"}</span>
+                    </span>
+                    <span className="lb-rcpt">
+                      <a href={explorerTx(p.joinSig)} target="_blank" rel="noreferrer">deposit ↗</a>
+                      {p.paySig && (
+                        <a href={explorerTx(p.paySig)} target="_blank" rel="noreferrer">payout ↗</a>
+                      )}
+                    </span>
+                  </div>
+                  <div className="payout lb-pay">
                     {c.status === "settled" ? (
                       <b className={(p.payout || 0) > 0 ? "win" : "lose"}>{(p.payout || 0) > 0 ? `+${money(p.payout || 0)}` : `-${money(c.deposit)}`}</b>
                     ) : (
                       <span className="muted small">{fin ? `on track for ${money(po?.amount || 0)}` : "not yet"}</span>
                     )}
                   </div>
+                  {p.runs.length > 0 && (
+                    <div className="proofs lb-proofs">
+                      {p.runs.slice(-6).reverse().map((r) => (
+                        <button key={r.id} className={`proof-chip ${r.counts ? "" : "nope"}`} onClick={() => setViewRun({ run: r, name: p.name })} title="See proof">
+                          {r.photo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={`/api/photos/${r.id}`} alt="" loading="lazy" />
+                          ) : (
+                            <span className="strava-mark" aria-hidden />
+                          )}
+                          <span>{r.km} km</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -328,5 +342,6 @@ export default function ChallengePage() {
         </div>
       )}
     </main>
+    </AppShell>
   );
 }
