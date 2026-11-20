@@ -7,7 +7,7 @@ import Dial from "@/components/Dial";
 import TypeValue from "@/components/TypeValue";
 import AppShell from "@/components/AppShell";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
-import { APP_SPONSORS, Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
+import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, partnerLogoSources, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
 import { speak, timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
@@ -85,16 +85,13 @@ export default function Home() {
             the quitters&apos; money. The deposits wait in escrow on Solana, so nobody can back out of paying.
           </p>
         </div>
-        <aside className="app-sponsors" aria-label="Sponsored by">
-          <div className="muted small">Sponsored by</div>
-          <div className="app-sponsor-list">
-            {APP_SPONSORS.map((sp) => (
-              <a key={sp.name} className="app-sponsor" href={sp.url} target="_blank" rel="noreferrer noopener">
-                <span className="app-sponsor-mark">
-                  <PartnerLogo src={sp.logo} name={sp.name} className="app-sponsor-logo" />
-                  <b>{sp.name}</b>
-                </span>
-                {sp.note && <span className="muted small">{sp.note}</span>}
+        <aside className="app-sponsors" aria-label="Partners">
+          <div className="muted small">Partners</div>
+          <div className="partner-grid">
+            {PARTNERS.map((pt) => (
+              <a key={pt.name} className="partner-tile" href={pt.url} target="_blank" rel="noreferrer noopener" title={pt.role}>
+                <PartnerLogo src={partnerLogoSources(pt)} name={pt.name} className="partner-tile-logo" />
+                <b>{pt.name}</b>
               </a>
             ))}
           </div>
@@ -204,7 +201,7 @@ export default function Home() {
         <div className="partner-row">
           {PARTNERS.map((pt) => (
             <div className="partner" key={pt.name}>
-              <PartnerLogo src={pt.logo} name={pt.name} />
+              <PartnerLogo src={partnerLogoSources(pt)} name={pt.name} />
               <b>{pt.name}</b>
               <span>{pt.role}</span>
             </div>

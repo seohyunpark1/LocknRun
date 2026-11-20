@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Challenge, explorerAddress, isFinisher, money } from "@/lib/config";
+import { Challenge, explorerAddress, isFinisher, money, partnerByName, partnerLogoSources } from "@/lib/config";
 import { speak, useMe } from "@/lib/client";
 import Celebration, { Win } from "./Celebration";
 import { PartnerLogo } from "./Logos";
@@ -115,7 +115,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <div className="side-built">
-          <PartnerLogo src="/partners/solana.svg" name="Solana" className="side-built-logo" />
+          <PartnerLogo src={partnerLogoSources(partnerByName("Solana"))} name="Solana" className="side-built-logo" />
           <div className="small">Built on <b>Solana</b></div>
           <div className="muted small">Every deposit, payout and run proof is recorded on-chain.</div>
         </div>

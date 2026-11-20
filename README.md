@@ -130,8 +130,9 @@ signatures). Next step: cash out straight to a bank account through an off-ramp.
 
 - Sponsors can upload a PNG/JPG logo when they add a bonus. It is shrunk to 256 px in the browser and shown on the
   challenge card, the challenge banner, the Sponsors card and the Earnings page. (SVG uploads are refused for safety.)
-- The "Powered by" strip shows official partner logos if you add the files to `public/partners/`
-  (see the README there); until then it shows the names.
+- Partners (Solana, Circle, QuickNode, Strava) appear in a "Partners" card at the top of the home page, the
+  "Powered by" strip, the sidebar and the payout pop-up. Each logo is the company's own site icon, loaded from its
+  domain; drop official files into `public/partners/` for sharper logos (see the README there).
 
 ## Install it like an app
 

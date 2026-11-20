@@ -1,7 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import Link from "next/link";
-import { Challenge, explorerTx, isFinisher, money } from "@/lib/config";
+import { Challenge, explorerTx, isFinisher, money, partnerByName, partnerLogoSources } from "@/lib/config";
 import { PartnerLogo, SponsorMark } from "./Logos";
 
 export type Win = { c: Challenge; payout: number; paySig?: string; refund: boolean };
@@ -109,7 +109,7 @@ export default function Celebration({ win, name, onClose }: { win: Win; name: st
         </div>
         <div className="celebrate-chain">
           <span className="muted small">Paid out on</span>
-          <PartnerLogo src="/partners/solana.svg" name="Solana" className="celebrate-chain-logo" />
+          <PartnerLogo src={partnerLogoSources(partnerByName("Solana"))} name="Solana" className="celebrate-chain-logo" />
           <b className="small">Solana</b>
           {paySig && (
             <a className="small muted" href={explorerTx(paySig)} target="_blank" rel="noreferrer">

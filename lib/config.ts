@@ -75,20 +75,23 @@ export type Sponsor = { name: string; amount: number; url?: string; at: number; 
 export const MAX_LOGO_BYTES = 150_000; // sponsor logos are shrunk to 256px in the browser first
 export const sponsorLogoUrl = (challengeId: string, index: number) => `/api/sponsor-logo/${challengeId}/${index}`;
 
+export type Partner = { name: string; domain: string; logo: string; url: string; role: string };
+
 /**
- * App-level sponsors shown at the top of the home page ("Sponsored by").
- * Add more by adding a line; put the official logo file in /public/partners/.
+ * Partners shown in the "Partners" card at the top of the home page, the "Powered by" strip and the sidebar.
+ * Logos: an official file in /public/partners/<file> is used if you add one; otherwise the company's own
+ * site icon is loaded from its domain; if neither loads, the name is shown.
  */
-export const APP_SPONSORS: { name: string; logo: string; url?: string; note?: string }[] = [
-  { name: "Solana", logo: "/partners/solana.svg", url: "https://solana.com", note: "Escrow, payouts and run proofs" },
+export const PARTNERS: Partner[] = [
+  { name: "Solana", domain: "solana.com", logo: "/partners/solana.svg", url: "https://solana.com", role: "Escrow, payouts and run proofs" },
+  { name: "Circle", domain: "circle.com", logo: "/partners/circle.svg", url: "https://www.circle.com", role: "USDC, the digital dollars runners deposit and win" },
+  { name: "QuickNode", domain: "quicknode.com", logo: "/partners/quicknode.svg", url: "https://www.quicknode.com", role: "Fast connection to Solana" },
+  { name: "Strava", domain: "strava.com", logo: "/partners/strava.svg", url: "https://www.strava.com", role: "Import runs as proof" },
 ];
 
-/** Tech partners shown in the "Powered by" strip. Drop official logo files into /public/partners/ to show them. */
-export const PARTNERS = [
-  { name: "Solana", role: "Escrow, payouts and proof stamps", logo: "/partners/solana.svg" },
-  { name: "USDC", role: "Deposits and payouts in digital dollars", logo: "/partners/usdc.svg" },
-  { name: "Strava", role: "Import runs as proof", logo: "/partners/strava.svg" },
-];
+/** Where to look for a partner's logo, in order. */
+export const partnerLogoSources = (p: Partner) => [p.logo, `https://www.google.com/s2/favicons?domain=${p.domain}&sz=128`];
+export const partnerByName = (name: string) => PARTNERS.find((p) => p.name === name)!;
 export const SPONSOR_BONUSES = [10, 25, 50, 100];
 export const MAX_SPONSORS = 3;
 
