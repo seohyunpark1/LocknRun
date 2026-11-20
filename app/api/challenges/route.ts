@@ -2,7 +2,7 @@ import { walletSession, walletAuthFailure } from "@/lib/wallet-auth";
 import { prepareDeposit } from "@/lib/deposits";
 import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
-import { Challenge, DURATION_LIMITS, RANGES, clean } from "@/lib/config";
+import { Challenge, DURATION_LIMITS, RANGES, clean, roomDaysIn, validTimeZone } from "@/lib/config";
 import { escrowAddress, escrowBalance } from "@/lib/solana-server";
 import { insertChallenge, listChallenges, newId } from "@/lib/store";
 
@@ -59,6 +59,10 @@ export async function POST(req: Request) {
 
 
     const now = Date.now();
+    const timeZone = validTimeZone(b.timeZone) ? b.timeZone : "UTC";
+    const days = roomDaysIn({ createdAt: now, endsAt: now + minutes * 60_000, timeZone });
+    // One qualifying check-in counts per room day, so the goal can't need more days than the challenge has.
+    if (runsRequired > days) return NextResponse.json({ error: `Only one run counts per day, and this challenge spans ${days} day${days === 1 ? "" : "s"}. Lower the number of runs or make it longer.` }, { status: 400 });
     const c: Challenge = {
       id,
       title: clean(b.title, 60, `${runsRequired}× ${goalKm} km`),
@@ -68,6 +72,7 @@ export async function POST(req: Request) {
       createdAt: now,
       endsAt: now + minutes * 60_000,
       creatorName: name,
+      timeZone,
       status: "draft",
       participants: [],
     };

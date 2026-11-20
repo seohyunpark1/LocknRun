@@ -31,7 +31,7 @@ Show **`$10 USDC`** for stakes, pools and rewards, and **SOL separately for netw
 | Challenge format | Five people, 30 calendar days, 20 qualifying days | Existing configurable distance, run count, deposit and short demo durations retained |
 | Recording | SwiftUI, Core Motion, optional GPS; camera check-in | Browser GPS and photo proof; no validated screen-locked/treadmill recording |
 | Daily rules | Fixed room zone, one qualifying day, streaks | Existing run counts; daily/session policy and streaks are not implemented |
-| Verification | Central verifier; raw details offchain | Existing GPS/pace checks and optional Strava; existing proof summaries still use Solana memos |
+| Verification | Central verifier; raw details offchain | Server run sessions, one photo check-in per room day, pace checks, review queue; proof summaries use Solana memos |
 | Settlement | 5% of forfeitures, six-decimal join-order rounding; review window, timeout refunds, individual claims | Existing no-fee split rounded down to cents, zero-finisher refunds and server-triggered batch payouts; no review/timeout protocol |
 | Indexing | Authenticated QuickNode Streams webhook | Direct RPC confirmation and polling; no Streams integration |
 | Storage | Supabase Auth, Postgres and private Storage | Redis on Vercel, local JSON during development; photo endpoint now requires room membership |
@@ -102,21 +102,25 @@ Before approval, the browser decodes the transaction and checks the exact transf
 
 Regression tests reproduce the former simulation/message mismatch, check v0 byte equality, reject Mainnet RPCs and altered transfer/authority instructions, and retain recovery of legacy pending deposits. These checks do **not** certify the app as audited or guarantee Phantom's own warning disappears. Test the new preview on the deployed domain; cancel instead of approving if Phantom still warns, and use its domain/transaction review process if needed. Reference: https://docs.phantom.com/recipes/transactions/resolve-transaction-simulation-warnings.
 
-### Rewards (`lib/settle.ts`), Challengers-style
-Everyone locks the same deposit `D`. Your **achievement rate** is the share of required runs you completed.
+### Rewards (`lib/settle.ts`), per `LocknRun_Basic_Structure.md` section 6
+`N` runners stake `D` each, `W` of them finish (all required qualifying days approved), sponsors add `B`.
 
-| Achievement | You get back |
+| Outcome | Result |
 |---|---|
-| **100%** | `D` + an equal share of the **prize pool** |
-| **85–99%** | `D` (full deposit, no prize) |
-| **Below 85%** | `D × rate` (e.g. 1 of 2 runs → 50% of `D`) |
+| **All finish** | Everyone gets `D` back, plus an equal share of any sponsor bonus. No fee. |
+| **Some finish** (`W > 0`) | Forfeited stakes `F = (N − W) × D`; **platform fee = 5% of `F`** (rounded down). Finishers split `N × D + B − fee` equally. Leftover micro-USDC go to finishers in join order. |
+| **Nobody finishes** | Every stake is refunded and sponsor bonuses are returned. No fee. |
 
-**Prize pool** = everything the below-85% runners don't get back + any sponsor bonus, split equally among the
-100% runners. If nobody reaches 100%, everyone gets `D` back and sponsors get their bonus back. Amounts are whole
-cents, rounded down; leftover cents stay in escrow.
+All math is integer micro-USDC and shared by the UI and payouts. The fee stays in the escrow wallet (it is reported as
+`fee` by `computePayouts`; no separate fee-wallet transfer exists yet). Example (5 × 10 USDC, 3 finish): fee 1, finishers share 49 →
+16.333334 / 16.333333 / 16.333333.
 
-Example: 3 runners × $20 with a $75 sponsor bonus, 2 runs required. Maria 2/2, Daniel 1/2, Kevin 0/2 →
-Daniel gets $10 back, Kevin $0, and Maria gets $20 + $30 + $75 = **$125**. Pot $135, all paid out.
+### Daily check-ins and review (`app/api/challenges/[id]/route.ts`)
+1. `start` issues a server run session (the server's clock).
+2. `run` submits distance, time and **one photo**. Rejected if the session is unknown, reused, or the reported time is longer than the session lasted; if under the goal distance; or if pace is outside 2:30–20:00/km.
+3. **One counted check-in per room day** in the challenge's fixed time zone (set from the creator's browser, shown on the challenge page). A goal can't need more days than the challenge spans.
+4. Paces faster than 3:30/km become **pending review**: they hold that day's slot and don't count. A reviewer decides with `action: "review"` and the `x-verifier-key` header (env `VERIFIER_KEY`; disabled if unset). Payout waits for pending reviews, up to 24 hours after the end; unresolved ones then don't count.
+5. Distance is estimated from the phone's location in the browser. The document's Core Motion/HealthKit sources need a native iOS app. Strava and the voice coach are not part of this flow.
 
 ### Badges
 The earnings page awards badges: First 100%, Hot streak (3 perfect in a row), Perfect five, Sponsor-backed,
@@ -130,7 +134,7 @@ advertises sponsoring a challenge. Sponsors write their ad message when they add
 ### Sponsored challenges
 Brands (a running store, a campus club) can add a **bonus** of $10, $25, $50 or $100 to any live challenge, with a
 logo and an ad message. The bonus is locked in the same escrow (memo `LockRun|sponsor|<challenge>`), goes into the
-prize pool for 100% runners, and is returned to the sponsor if nobody hits 100%. Sponsored challenges show a
+shared by finishers, and is returned to the sponsor if nobody finishes. Sponsored challenges show a
 "+$50 bonus · Sponsored by …" badge, are listed first, and the top sponsor's logo leads the payout pop-up.
 ## Shop: spend what you won
 

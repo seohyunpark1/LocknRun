@@ -140,7 +140,7 @@ export default function ShopPage() {
             <h2>My rewards</h2>
             {orders.length === 0 ? (
               <p className="muted small" style={{ margin: 0 }}>
-                Nothing yet. Finish a challenge at 100%, then come back and treat yourself.
+                Nothing yet. Finish a challenge, then come back and treat yourself.
               </p>
             ) : (
               <div className="reward-list">

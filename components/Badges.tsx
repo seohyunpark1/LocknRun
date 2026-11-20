@@ -11,7 +11,7 @@ export default function Badges({ rows, address }: { rows: Row[]; address: string
     .flatMap((r) => r.c.participants.find((p) => p.address === address)?.runs || [])
     .filter((run) => run.counts)
     .reduce((s, run) => s + run.km, 0);
-  // Longest run of 100% finishes in a row (oldest to newest).
+  // Longest run of finished challenges in a row (oldest to newest).
   let streak = 0;
   let best = 0;
   [...done].sort((a, b) => (a.c.settledAt || 0) - (b.c.settledAt || 0)).forEach((r) => {
@@ -20,9 +20,9 @@ export default function Badges({ rows, address }: { rows: Row[]; address: string
   });
 
   const badges = [
-    { icon: "🎯", name: "First 100%", desc: "Hit 100% in a challenge", got: perfect.length >= 1, progress: `${Math.min(perfect.length, 1)}/1` },
+    { icon: "🎯", name: "First finish", desc: "Finish a challenge", got: perfect.length >= 1, progress: `${Math.min(perfect.length, 1)}/1` },
     { icon: "🔥", name: "Hot streak", desc: "3 perfect challenges in a row", got: best >= 3, progress: `${Math.min(best, 3)}/3` },
-    { icon: "🏆", name: "Perfect five", desc: "Hit 100% five times", got: perfect.length >= 5, progress: `${Math.min(perfect.length, 5)}/5` },
+    { icon: "🏆", name: "Perfect five", desc: "Finish five challenges", got: perfect.length >= 5, progress: `${Math.min(perfect.length, 5)}/5` },
     { icon: "🤝", name: "Sponsor-backed", desc: "Win a sponsor bonus", got: rows.some((r) => r.bonusShare > 0), progress: "" },
     { icon: "👟", name: "10K club", desc: "Log 10 km of counted runs", got: km >= 10, progress: `${Math.min(km, 10).toFixed(1)}/10 km` },
     { icon: "🏃", name: "Marathoner", desc: "Log 42.2 km of counted runs", got: km >= 42.2, progress: `${Math.min(km, 42.2).toFixed(1)}/42.2 km` },

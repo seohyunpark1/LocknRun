@@ -8,11 +8,11 @@ import { Challenge, countedRuns, explorerAddress, explorerTx, money } from "@/li
 import { computePayouts, prizeBreakdown } from "@/lib/settle";
 import Badges from "@/components/Badges";
 import AdSlot from "@/components/AdSlot";
-import { speak, timeLeft, useMe, useNow } from "@/lib/client";
+import { timeLeft, useMe, useNow } from "@/lib/client";
 
 type Row = {
   c: Challenge;
-  state: "live" | "ready" | "won" | "back" | "partial" | "lost" | "refunded";
+  state: "live" | "ready" | "won" | "back" | "lost" | "refunded";
   rate: number;
   payout: number;
   bonusShare: number;
@@ -61,8 +61,8 @@ export default function EarningsPage() {
         const p = c.participants.find((x) => x.address === me.address)!;
         const { payouts } = computePayouts(c);
         const mine = payouts.find((x) => x.address === me.address)!;
-        const nobodyWon = !payouts.some((x) => x.tier === "full");
-        const bonusShare = mine.tier === "full" && !nobodyWon ? prizeBreakdown(c).bonusShare : 0;
+        const nobodyWon = mine.tier === "refund";
+        const bonusShare = mine.tier === "finished" ? prizeBreakdown(c).bonusShare : 0;
         const live = c.status === "active" && now < c.endsAt;
         let state: Row["state"] = "live";
         let payout = 0;
@@ -71,14 +71,14 @@ export default function EarningsPage() {
           payout = mine.amount;
         } else if (c.status === "settled") {
           payout = p.payout || 0;
-          state = nobodyWon ? "refunded" : payout > c.deposit ? "won" : payout >= c.deposit ? "back" : payout > 0 ? "partial" : "lost";
+          state = nobodyWon ? "refunded" : payout > c.deposit ? "won" : payout >= c.deposit ? "back" : "lost";
         }
         return { c, state, rate: mine.rate, payout, bonusShare, paySig: p.paySig, joinSig: p.joinSig, done: countedRuns(p) };
       })
       .sort((a, b) => b.c.createdAt - a.c.createdAt);
   }, [challenges, me, now]);
 
-  const settled = rows.filter((r) => ["won", "back", "partial", "lost", "refunded"].includes(r.state));
+  const settled = rows.filter((r) => ["won", "back", "lost", "refunded"].includes(r.state));
   const won = settled.reduce((s, r) => s + r.payout, 0);
   const deposited = settled.reduce((s, r) => s + r.c.deposit, 0);
   const net = Math.round((won - deposited) * 100) / 100;
@@ -116,7 +116,6 @@ export default function EarningsPage() {
       sessionStorage.removeItem("lockrun.withdrawal");
       setPendingTransfer(false);
       setMsg({ ok: true, text: `Sent ${money(amt)}.`, sig: d2.signature });
-      speak(`Done! ${amt} dollars are on their way.`);
       setAmount("");
       load();
     } catch (e) {
@@ -175,7 +174,7 @@ export default function EarningsPage() {
 
         <div className="layout">
           <section>
-            <Badges rows={rows.map((r) => ({ c: r.c, rate: r.rate, settled: ["won", "back", "partial", "lost", "refunded"].includes(r.state), bonusShare: r.bonusShare }))} address={me?.address || ""} />
+            <Badges rows={rows.map((r) => ({ c: r.c, rate: r.rate, settled: ["won", "back", "lost", "refunded"].includes(r.state), bonusShare: r.bonusShare }))} address={me?.address || ""} />
             <h2 style={{ marginTop: "1.75rem" }}>Payouts</h2>
             {rows.length === 0 ? (
               <div className="empty">
@@ -208,7 +207,6 @@ export default function EarningsPage() {
                       {r.state === "won" && <b className="win">+{money(r.payout)}</b>}
                       {r.state === "lost" && <b className="lose">-{money(r.c.deposit)}</b>}
                       {r.state === "back" && <b>{money(r.payout)} back</b>}
-                      {r.state === "partial" && <b className="lose">{money(r.payout)} back</b>}
                       {r.state === "refunded" && <b>{money(r.payout)} back</b>}
                       {r.state === "ready" && <span className="muted small">{r.payout > 0 ? `${money(r.payout)} waiting` : "no payout"}</span>}
                       {r.state === "live" && <span className="muted small">in progress</span>}

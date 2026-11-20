@@ -10,7 +10,7 @@ import TypeValue from "@/components/TypeValue";
 import AppShell from "@/components/AppShell";
 import { PartnerLogo, SponsorMark } from "@/components/Logos";
 import { Challenge, DEPOSITS, DURATION_UNITS, GOAL_KMS, RUNS_REQUIRED, PARTNERS, RANGES, partnerLogoSources, bonusOf, countedRuns, durationLabel, money, potOf } from "@/lib/config";
-import { speak, timeLeft, useMe, useNow } from "@/lib/client";
+import { timeLeft, useMe, useNow } from "@/lib/client";
 
 type Data = { challenges: Challenge[]; escrow: { address: string | null; balance: number | null } };
 
@@ -53,7 +53,7 @@ export default function Home() {
       const r = await fetch("/api/challenges", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, goalKm, runsRequired, deposit, minutes, name: me.name, address: me.address }),
+        body: JSON.stringify({ title, goalKm, runsRequired, deposit, minutes, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, name: me.name, address: me.address }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Could not create");
@@ -197,7 +197,7 @@ export default function Home() {
       </div>
       <section className="steps" id="how">
         <div className="step"><b>1 · Join &amp; lock</b>Pick a goal like 3 km × 2 runs and choose how much USDC you want to stake. Your stake is locked until the challenge ends.</div>
-        <div className="step"><b>2 · Run and check in</b>Record each run with your phone, then add one photo check-in. You&apos;ll see it approved, sent for review, or rejected, with the reason.</div>
+        <div className="step"><b>2 · Run and check in</b>Record each run with your phone, then add one photo check-in per day. You&apos;ll see it approved, sent for review, or rejected, with the reason.</div>
         <div className="step"><b>3 · Get rewarded</b>
           <b style={{ display: "inline" }}>Everyone finishes:</b> everyone gets their stake back, plus any sponsor bonus.<br />
           <b style={{ display: "inline" }}>Some finish:</b> finishers split the pool, including the stakes of those who didn&apos;t.<br />
@@ -224,7 +224,6 @@ export default function Home() {
         <NameGate
           onJoin={async (n, wallet) => {
             await join(n, wallet);
-            speak(`Welcome to Lock and Run, ${n}! Let's get running.`);
           }}
         />
       )}

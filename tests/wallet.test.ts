@@ -355,3 +355,101 @@ test('shop payments require login, use one wallet signer, bind to the order, and
   assert.equal((await listed(undefined)).orders.length, 0);
   t.mock.restoreAll();
 });
+
+function room(over: Record<string, unknown> = {}, finished: boolean[] = [], deposit = 10, bonus = 0) {
+  const runsRequired = 2;
+  return {
+    id: 'settle', title: 'T', goalKm: 3, runsRequired, deposit, createdAt: 0, endsAt: 1, creatorName: 'x', status: 'active' as const,
+    sponsors: bonus ? [{ name: 's', amount: bonus, at: 0, sig: 'x' }] : [],
+    participants: finished.map((done, i) => ({ name: `p${i}`, address: `a${i}`, joinedAt: 0, joinSig: 'j', runs: done ? [1, 2].map(n => ({ id: `${i}${n}`, km: 3, sec: 900, at: 0, counts: true })) : [{ id: `${i}x`, km: 3, sec: 900, at: 0, counts: true }] })),
+    ...over,
+  };
+}
+
+test('settlement follows the structure document: all finish, some finish, nobody finishes, sponsor bonus, 5% fee, rounding', async () => {
+  const { computePayouts } = await import('../lib/settle');
+  const total = (r: { payouts: { amount: number }[] }) => Math.round(r.payouts.reduce((s, p) => s + p.amount, 0) * 1e6);
+  // All five finish, no bonus: everyone gets 10 back, no fee.
+  let r = computePayouts(room({}, [true, true, true, true, true]));
+  assert.deepEqual(r.payouts.map(p => p.amount), [10, 10, 10, 10, 10]); assert.equal(r.fee, 0);
+  // Three of five finish: fee 1 USDC, finishers share 49.
+  r = computePayouts(room({}, [true, true, true, false, false]));
+  assert.equal(r.fee, 1); assert.equal(total(r), 49_000_000);
+  assert.deepEqual(r.payouts.map(p => p.amount), [16.333334, 16.333333, 16.333333, 0, 0]);
+  assert.ok(r.payouts.slice(3).every(p => p.tier === 'forfeited'));
+  // All finish with a 10 USDC bonus: 12 each.
+  r = computePayouts(room({}, [true, true, true, true, true], 10, 10));
+  assert.deepEqual(r.payouts.map(p => p.amount), [12, 12, 12, 12, 12]); assert.equal(r.fee, 0);
+  // Nobody finishes: refunds, bonus returned, no fee.
+  r = computePayouts(room({}, [false, false, false, false, false], 10, 10));
+  assert.deepEqual(r.payouts.map(p => p.amount), [10, 10, 10, 10, 10]);
+  assert.ok(r.payouts.every(p => p.tier === 'refund')); assert.equal(r.sponsorRefund, 10); assert.equal(r.fee, 0);
+  // Money never exceeds the pot minus the fee.
+  r = computePayouts(room({}, [true, false, false, true, false], 7, 25));
+  assert.equal(total(r) + Math.round(r.fee * 1e6), Math.round(r.pot * 1e6));
+});
+
+test('check-ins need a server session, one photo, and one counted run per room day; fast paces wait for review', async t => {
+  const { connection } = await import('../lib/solana-server');
+  const { insertChallenge, getChallenge, kvSet } = await import('../lib/store');
+  const { POST } = await import('../app/api/challenges/[id]/route');
+  const { roomDay } = await import('../lib/config');
+  const runner = Keypair.generate();
+  process.env.SPONSOR_SECRET_KEY = bs58.encode(Keypair.generate().secretKey);
+  t.mock.method(connection, 'getLatestBlockhash', async () => { throw new Error('offline'); }); // proof stamping is best effort
+  const token = '2'.repeat(64);
+  await kvSet(`session:${token}`, { address: runner.publicKey.toBase58(), expires: Date.now() + 60_000 });
+  const now = Date.now();
+  const c = { id: 'checkin', title: 'T', goalKm: 3, runsRequired: 2, deposit: 10, createdAt: now, endsAt: now + 3 * 86_400_000, creatorName: 'R', timeZone: 'America/Vancouver', status: 'active' as const, participants: [{ name: 'R', address: runner.publicKey.toBase58(), joinedAt: now, joinSig: 'j', runs: [] }] };
+  await insertChallenge(c);
+  const photo = 'data:image/jpeg;base64,' + Buffer.from('x'.repeat(64)).toString('base64');
+  const call = (body: object) => POST(new Request('https://lockrun.test/api/challenges/checkin', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: `lockrun_session=${token}` }, body: JSON.stringify(body) }), { params: { id: 'checkin' } });
+  const start = async () => (await (await call({ action: 'start' })).json()).sessionId as string;
+  assert.equal((await call({ action: 'run', km: 3, sec: 900, photo, sessionId: 'a'.repeat(20) })).status, 403, 'unknown session');
+  const s1 = await start();
+  assert.equal((await call({ action: 'run', km: 3, sec: 900, sessionId: s1 })).status, 400, 'photo required');
+  // Reported time longer than the session actually lasted is rejected (and stored with a reason).
+  const lie = await (await call({ action: 'run', km: 3, sec: 900, photo, sessionId: s1 })).json();
+  assert.equal(lie.run.status, 'rejected'); assert.match(lie.reason, /longer than the run session/);
+  assert.equal((await call({ action: 'run', km: 3, sec: 900, photo, sessionId: s1 })).status, 409, 'a session submits once');
+  // Backdate a session so a valid-looking 25 min / 5 km run is plausible: approved.
+  const s2 = await start();
+  await kvSet(`runsession:${s2}`, { challengeId: 'checkin', address: runner.publicKey.toBase58(), startedAt: Date.now() - 40 * 60_000 });
+  const ok = await (await call({ action: 'run', km: 5, sec: 1500, photo, sessionId: s2 })).json();
+  assert.equal(ok.run.status, 'approved'); assert.equal(ok.run.roomDay, roomDay(Date.now() - 40 * 60_000, 'America/Vancouver'));
+  // A second check-in for the same room day is refused; it does not create a qualifying day.
+  const s3 = await start();
+  await kvSet(`runsession:${s3}`, { challengeId: 'checkin', address: runner.publicKey.toBase58(), startedAt: Date.now() - 30 * 60_000 });
+  assert.equal((await call({ action: 'run', km: 5, sec: 1500, photo, sessionId: s3 })).status, 409);
+  const after = await getChallenge('checkin');
+  assert.equal(after!.participants[0].runs.filter(r => r.counts).length, 1);
+  assert.equal(after!.participants[0].runs.length, 2);
+});
+
+test('very fast runs wait for review, hold the day slot, hold settlement, and only the verifier key can decide', async t => {
+  const { connection } = await import('../lib/solana-server');
+  const { insertChallenge, getChallenge, kvSet } = await import('../lib/store');
+  const { POST } = await import('../app/api/challenges/[id]/route');
+  const runner = Keypair.generate();
+  process.env.SPONSOR_SECRET_KEY = bs58.encode(Keypair.generate().secretKey);
+  process.env.VERIFIER_KEY = 'verifier-secret-123';
+  t.mock.method(connection, 'getLatestBlockhash', async () => { throw new Error('offline'); });
+  const token = '3'.repeat(64);
+  await kvSet(`session:${token}`, { address: runner.publicKey.toBase58(), expires: Date.now() + 60_000 });
+  const now = Date.now();
+  await insertChallenge({ id: 'review', title: 'T', goalKm: 3, runsRequired: 1, deposit: 10, createdAt: now - 7200_000, endsAt: now + 3600_000, creatorName: 'R', status: 'active' as const, participants: [{ name: 'R', address: runner.publicKey.toBase58(), joinedAt: now - 7200_000, joinSig: 'j', runs: [] }] });
+  const photo = 'data:image/jpeg;base64,' + Buffer.from('y'.repeat(64)).toString('base64');
+  const call = (body: object, headers: Record<string, string> = {}) => POST(new Request('https://lockrun.test/api/challenges/review', { method: 'POST', headers: { 'Content-Type': 'application/json', cookie: `lockrun_session=${token}`, ...headers }, body: JSON.stringify(body) }), { params: { id: 'review' } });
+  const { sessionId } = await (await call({ action: 'start' })).json();
+  await kvSet(`runsession:${sessionId}`, { challengeId: 'review', address: runner.publicKey.toBase58(), startedAt: Date.now() - 30 * 60_000 });
+  const sent = await (await call({ action: 'run', km: 3, sec: 480, photo, sessionId })).json(); // 2:40/km
+  assert.equal(sent.run.status, 'pending'); assert.equal(sent.run.counts, false);
+  const { sessionId: again } = await (await call({ action: 'start' })).json();
+  await kvSet(`runsession:${again}`, { challengeId: 'review', address: runner.publicKey.toBase58(), startedAt: Date.now() - 20 * 60_000 });
+  assert.equal((await call({ action: 'run', km: 3, sec: 1000, photo, sessionId: again })).status, 409, 'pending holds the day slot');
+  assert.equal((await call({ action: 'review', runId: sent.run.id, decision: 'approve' })).status, 403, 'participants cannot approve their own run');
+  assert.equal((await call({ action: 'review', runId: sent.run.id, decision: 'approve' }, { 'x-verifier-key': 'verifier-secret-123' })).status, 200);
+  const done = await getChallenge('review');
+  assert.equal(done!.participants[0].runs[0].counts, true);
+  delete process.env.VERIFIER_KEY;
+});

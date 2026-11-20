@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { pace } from "@/lib/config";
-import { setVoice, speak, voiceOn } from "@/lib/client";
 
-type Result = { counts: boolean; reason?: string };
+type Result = { status: "approved" | "pending" | "rejected"; reason?: string };
 type Props = {
   goalKm: number;
-  demo: boolean;
-  onFinish: (km: number, sec: number, photo: string) => Promise<Result>;
+  /** Opens a server-issued run session; its id is returned and must accompany the check-in. */
+  onStart: () => Promise<string>;
+  onFinish: (km: number, sec: number, photo: string, sessionId: string) => Promise<Result>;
 };
 
 // Distance between two GPS points in meters.
@@ -20,17 +20,10 @@ function haversine(a: GeolocationCoordinates, b: GeolocationCoordinates) {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-function spokenPace(secPerKm: number) {
-  const m = Math.floor(secPerKm / 60);
-  const s = Math.round(secPerKm % 60);
-  return `${m} minutes${s ? ` ${s}` : ""} per kilometer`;
-}
-
-export default function RunTracker({ goalKm, demo, onFinish }: Props) {
+export default function RunTracker({ goalKm, onStart, onFinish }: Props) {
   const [phase, setPhase] = useState<"idle" | "running" | "proof" | "saving" | "done">("idle");
   const [photo, setPhoto] = useState<string>("");
-  const [voice, setVoiceState] = useState(false);
-  useEffect(() => setVoiceState(voiceOn()), []);
+  const sessionId = useRef("");
   const final = useRef({ km: 0, sec: 0 });
   const [meters, setMeters] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -41,32 +34,20 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
   const watchId = useRef<number | null>(null);
   const last = useRef<{ c: GeolocationCoordinates; t: number } | null>(null);
   const startAt = useRef(0);
-  const extraSec = useRef(0); // demo mode adds simulated time with simulated distance
   const metersRef = useRef(0);
-  const announcedKm = useRef(0);
-  const goalAnnounced = useRef(false);
   const wakeLock = useRef<{ release: () => Promise<void> } | null>(null);
 
   const km = meters / 1000;
   const curPace = km > 0.05 ? elapsed / km : 0;
 
-  function addMeters(d: number, secNow: number) {
+  function addMeters(d: number) {
     metersRef.current += d;
     setMeters(metersRef.current);
-    const k = Math.floor(metersRef.current / 1000);
-    if (k > announcedKm.current) {
-      announcedKm.current = k;
-      speak(`${k} kilometer${k > 1 ? "s" : ""} done. Pace: ${spokenPace(secNow / (metersRef.current / 1000))}.`);
-    }
-    if (!goalAnnounced.current && metersRef.current / 1000 >= goalKm) {
-      goalAnnounced.current = true;
-      speak(`Goal reached! ${goalKm} kilometers. Tap finish whenever you're ready.`);
-    }
   }
 
   useEffect(() => {
     if (phase !== "running") return;
-    const t = setInterval(() => setElapsed(Math.round((Date.now() - startAt.current) / 1000 + extraSec.current)), 1000);
+    const t = setInterval(() => setElapsed(Math.round((Date.now() - startAt.current) / 1000)), 1000);
     return () => clearInterval(t);
   }, [phase]);
 
@@ -83,15 +64,17 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
     setError("");
     setResult(null);
     metersRef.current = 0;
-    extraSec.current = 0;
-    announcedKm.current = 0;
-    goalAnnounced.current = false;
     last.current = null;
     setMeters(0);
     setElapsed(0);
+    try {
+      sessionId.current = await onStart(); // the server's clock starts this run
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not start the run.");
+      return;
+    }
     startAt.current = Date.now();
     setPhase("running");
-    speak(`Let's go! Today's goal: ${goalKm} kilometer${goalKm > 1 ? "s" : ""}.`);
 
     try {
       // Keep the screen on so the browser keeps receiving GPS.
@@ -125,11 +108,10 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
           return;
         }
         last.current = { c, t: pos.timestamp };
-        addMeters(d, (Date.now() - startAt.current) / 1000 + extraSec.current);
+        addMeters(d);
       },
       (err) => {
         setGps("off");
-        if (demo) return; // indoor stage demo: the "+250 m" button stands in for GPS
         setError(err.code === 1 ? "Allow location access to track your run." : "Can't get GPS right now. Try outside.");
       },
       { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
@@ -138,7 +120,7 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
 
   async function finish() {
     stopWatching();
-    const finalSec = Math.max(1, Math.round((Date.now() - startAt.current) / 1000 + extraSec.current));
+    const finalSec = Math.max(1, Math.round((Date.now() - startAt.current) / 1000));
     const finalKm = Math.round((metersRef.current / 1000) * 100) / 100;
     if (finalKm < 0.01) {
       setPhase("idle");
@@ -148,7 +130,6 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
     final.current = { km: finalKm, sec: finalSec };
     setPhoto("");
     setPhase("proof");
-    speak("Nice run! Snap a photo as proof to save it.");
   }
 
   async function pickPhoto(file: File | undefined) {
@@ -166,22 +147,13 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
     setPhase("saving");
     setError("");
     try {
-      const r = await onFinish(final.current.km, final.current.sec, photo);
+      const r = await onFinish(final.current.km, final.current.sec, photo, sessionId.current);
       setResult(r);
-      speak(r.counts ? `Run saved! ${final.current.km} kilometers. That one counts. Great job!` : `Run saved, but it doesn't count. ${r.reason || ""}`);
       setPhase("done");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save the run");
       setPhase("proof");
     }
-  }
-
-  function simulate() {
-    // Demo only: 250 m at a 6:00/km pace, for indoor stage demos.
-    extraSec.current += 90;
-    if (!startAt.current) return;
-    addMeters(250, (Date.now() - startAt.current) / 1000 + extraSec.current);
-    setElapsed(Math.round((Date.now() - startAt.current) / 1000 + extraSec.current));
   }
 
   const mm = Math.floor(elapsed / 60);
@@ -190,16 +162,6 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
 
   return (
     <div className="tracker">
-      <button
-        type="button"
-        className={`voice-toggle ${voice ? "on" : ""}`}
-        onClick={() => {
-          setVoice(!voice);
-          setVoiceState(!voice);
-        }}
-      >
-        {voice ? "Voice coach: on" : "Voice coach: off"}
-      </button>
       <div className="tracker-stats">
         <div>
           <div className="tk-big">{km.toFixed(2)}</div>
@@ -226,48 +188,43 @@ export default function RunTracker({ goalKm, demo, onFinish }: Props) {
       {phase === "running" && (
         <>
           <button className="btn go block big" onClick={finish}>
-            Finish &amp; save
+            Finish run
           </button>
           <p className="muted small" style={{ textAlign: "center" }}>
-            <span className={`dot ${gps}`} /> GPS {gps === "good" ? "locked" : gps === "weak" ? "weak signal" : gps === "off" ? "off" : "searching…"} · keep this screen open while you run
+            <span className={`dot ${gps}`} /> Phone tracking {gps === "good" ? "active" : gps === "weak" ? "weak signal" : gps === "off" ? "off" : "starting…"} · keep this screen open while you run
           </p>
-          {demo && (
-            <button className="btn ghost block" onClick={simulate}>
-              +250 m (demo)
-            </button>
-          )}
         </>
       )}
       {phase === "proof" && (
         <div className="proof">
-          <b>Add a photo as proof</b>
+          <b>Add your photo check-in</b>
           <p className="muted small" style={{ margin: "0.2rem 0 0.75rem" }}>
-            A selfie at the finish or your watch screen. Everyone in the challenge can see it, and its fingerprint is stamped on Solana.
+            One photo per day, taken after your run. Everyone in the challenge can see it, and its fingerprint is stamped on Solana.
           </p>
           <label className={`photo-pick ${photo ? "has" : ""}`}>
             {photo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photo} alt="Your run photo" />
             ) : (
-              <span>Take or choose a photo</span>
+              <span>Take your photo</span>
             )}
             <input type="file" accept="image/*" onChange={(e) => pickPhoto(e.target.files?.[0])} />
           </label>
           <button className="btn primary block big" style={{ marginTop: "0.75rem" }} disabled={!photo} onClick={save}>
-            Save run
+            Submit check-in
           </button>
           <button className="btn ghost block" style={{ marginTop: "0.5rem" }} onClick={() => { setPhase("idle"); setPhoto(""); }}>
             Discard
           </button>
         </div>
       )}
-      {phase === "saving" && <p className="muted">Saving your run and stamping the proof on Solana…</p>}
+      {phase === "saving" && <p className="muted">Submitting your check-in and stamping it on Solana…</p>}
       {phase === "done" && result && (
-        <div className={`result ${result.counts ? "ok" : "no"}`}>
-          <b>{result.counts ? "Run counted" : "Saved, but it doesn't count"}</b>
-          {!result.counts && result.reason && <div className="small">{result.reason}</div>}
+        <div className={`result ${result.status === "approved" ? "ok" : "no"}`}>
+          <b>{result.status === "approved" ? "Check-in approved" : result.status === "pending" ? "Sent for review" : "Check-in rejected"}</b>
+          {result.reason && <div className="small">{result.reason}</div>}
           <button className="btn block" style={{ marginTop: 10 }} onClick={() => setPhase("idle")}>
-            Start another run
+            Done
           </button>
         </div>
       )}
