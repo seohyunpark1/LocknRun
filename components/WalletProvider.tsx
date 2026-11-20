@@ -93,7 +93,7 @@ export default function WalletProvider({ children }: { children: React.ReactNode
   async function signWithdrawal(transaction: string, amount: number, to: string, feePayer: string) {
     if (!connected || !me) throw new Error('Connect your wallet first.');
     inspectWalletTransfer(Uint8Array.from(atob(transaction), c => c.charCodeAt(0)), { from: me.address, to, amount, feePayer });
-    if (!window.confirm(`Send ${amount} test USDC\nFrom: ${me.address}\nTo: ${to}\nNetwork: Solana Devnet\nNetwork fees: sponsored\nApprove this transfer in your external wallet?`)) throw new Error('Transfer cancelled.');
+    if (!window.confirm(`Send ${amount} test USDC\nFrom: ${me.address}\nTo: ${to}\nNetwork: Solana Devnet\nNetwork fee: paid from your wallet in SOL\nApprove this transfer in your external wallet?`)) throw new Error('Transfer cancelled.');
     // Re-prepare after human review to avoid handing the wallet a stale blockhash.
     const response = await fetch('/api/withdrawals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'prepare', to, amount }) });
     const fresh = await response.json();

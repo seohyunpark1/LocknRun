@@ -1,6 +1,6 @@
 import 'server-only';
 import { assertDevnet } from './solana-network';
-import { buildWalletTransaction } from './wallet-transaction';
+import { buildSimulatedTransaction } from './wallet-simulation';
 import { allSignaturesValid } from './transaction-signatures';
 import { depositSimulationMessage } from './simulation-error';
 import { createHash } from 'node:crypto';
@@ -29,12 +29,11 @@ export async function prepareDeposit(c: Challenge, address: string, name: string
   if (recipient === address) throw new Error('The escrow wallet cannot join.');
   const mint = new PublicKey(USDC_MINT), to = new PublicKey(recipient);
   const lifetime = await connection.getLatestBlockhash('confirmed');
-  const tx = buildWalletTransaction(owner, [
+  const { tx, simulation } = await buildSimulatedTransaction(owner, [
     createAssociatedTokenAccountIdempotentInstruction(owner, getAssociatedTokenAddressSync(mint, to, true), to, mint),
     createTransferCheckedInstruction(getAssociatedTokenAddressSync(mint, owner), mint, getAssociatedTokenAddressSync(mint, to, true), owner, BigInt(amount * 10 ** USDC_DECIMALS), USDC_DECIMALS),
     new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from(`LockRun|${kind}|${c.id}|${address}`) })
   ], lifetime.blockhash);
-  const simulation = await connection.simulateTransaction(tx, { commitment: 'confirmed', sigVerify: false });
   if (simulation.value.err) {
     console.error('deposit_simulation_failed', { challengeId: c.id, address, mint: USDC_MINT, amount, sourceTokenAccount: getAssociatedTokenAddressSync(mint, owner).toBase58(), error: simulation.value.err, logs: simulation.value.logs || [] });
     throw new Error(depositSimulationMessage(simulation.value.err, simulation.value.logs || []));

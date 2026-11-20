@@ -227,7 +227,7 @@ export default function EarningsPage() {
           <aside className="card">
             <h2>Cash out</h2>
             <p className="muted small" style={{ marginTop: 0 }}>
-              Send your winnings to any Solana wallet (like Phantom). Network fees are on us.
+              Send your winnings to any Solana wallet (like Phantom). A small network fee is paid from your wallet in SOL.
             </p>
             <div className="cash-bal">
               <span className="muted small">Available</span>

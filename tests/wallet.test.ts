@@ -187,8 +187,10 @@ test('withdrawals require login, bind sender and recipient, and retry without an
   const data = await prepared.json();
   const tx = VersionedTransaction.deserialize(Buffer.from(data.tx, 'base64'));
   assert.equal(tx.version, 0);
-  assert.equal(tx.message.header.numRequiredSignatures, 2);
-  assert.ok(tx.signatures.every(sig => sig.every(n => n === 0)), 'Sponsor must not pre-sign before Phantom approval');
+  assert.equal(tx.message.header.numRequiredSignatures, 1, 'Phantom is the only signer');
+  assert.ok(tx.signatures.every(sig => sig.every(n => n === 0)), 'Nothing is pre-signed before Phantom approval');
+  assert.equal(tx.message.staticAccountKeys[0].toBase58(), owner.publicKey.toBase58(), 'The runner pays the fee');
+  assert.ok(tx.message.compiledInstructions.length === 5 && tx.message.staticAccountKeys[tx.message.compiledInstructions[0].programIdIndex].toBase58() === 'ComputeBudget111111111111111111111111111111', 'Explicit compute and loaded-data limits come first');
   tx.sign([owner]); // succeeds only if the authenticated wallet is the transfer authority
   const original = Buffer.from(tx.serialize()).toString('base64');
   const bad = VersionedTransaction.deserialize(Buffer.from(original, 'base64'));

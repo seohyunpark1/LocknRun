@@ -1,4 +1,4 @@
-import { PublicKey, TransactionMessage, VersionedTransaction, type TransactionInstruction } from '@solana/web3.js';
+import { ComputeBudgetProgram, PublicKey, TransactionInstruction, TransactionMessage, VersionedTransaction } from '@solana/web3.js';
 import { createAssociatedTokenAccountIdempotentInstruction, createTransferCheckedInstruction, getAssociatedTokenAddressSync } from '@solana/spl-token';
 
 export const WALLET_USDC_MINT = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
@@ -6,6 +6,12 @@ export function buildWalletTransaction(payer: PublicKey, instructions: Transacti
   // The installed SDK can read v1 but cannot serialize it. v0 is Phantom's documented compatible format.
   return new VersionedTransaction(new TransactionMessage({ payerKey: payer, instructions, recentBlockhash: blockhash }).compileToV0Message());
 }
+/** Explicit compute-unit and loaded-account-data limits, so wallets can predict the transaction's cost and footprint. */
+export function budgetInstructions(units: number, loadedAccountsBytes: number) {
+  const data = Buffer.alloc(5); data.writeUInt8(4, 0); data.writeUInt32LE(loadedAccountsBytes, 1); // SetLoadedAccountsDataSizeLimit
+  return [ComputeBudgetProgram.setComputeUnitLimit({ units }), new TransactionInstruction({ programId: ComputeBudgetProgram.programId, keys: [], data })];
+}
+function isBudgetInstruction(ix: TransactionInstruction, kind: number) { return ix.programId.equals(ComputeBudgetProgram.programId) && ix.keys.length === 0 && ix.data.length === 5 && ix.data[0] === kind; }
 export function equalBytes(a: Uint8Array, b: Uint8Array) { return a.length === b.length && a.every((v, i) => v === b[i]); }
 
 function sameInstruction(actual: TransactionInstruction, expected: TransactionInstruction) {
@@ -25,7 +31,8 @@ export function inspectWalletTransfer(bytes: Uint8Array, expected: { from: strin
   const source = getAssociatedTokenAddressSync(mint, from), destination = getAssociatedTokenAddressSync(mint, to, true);
   const setup = createAssociatedTokenAccountIdempotentInstruction(payer, destination, to, mint);
   const transfer = createTransferCheckedInstruction(source, mint, destination, from, BigInt(Math.round(expected.amount * 1e6)), 6);
-  const instructions = TransactionMessage.decompile(tx.message).instructions;
+  let instructions = TransactionMessage.decompile(tx.message).instructions;
+  if (instructions.length >= 2 && isBudgetInstruction(instructions[0], 2) && isBudgetInstruction(instructions[1], 4)) instructions = instructions.slice(2);
   if (instructions.length !== 3 || !sameInstruction(instructions[0], setup) || !sameInstruction(instructions[1], transfer) || instructions[2].programId.toBase58() !== 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr' || instructions[2].keys.length) throw new Error('Transaction does not match the reviewed USDC transfer.');
   const writable = new Set([payer, from, source, destination].map(k => k.toBase58()));
   tx.message.staticAccountKeys.forEach((k, i) => { if (tx.message.isAccountWritable(i) && !writable.has(k.toBase58())) throw new Error('Unexpected writable account.'); });

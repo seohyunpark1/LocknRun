@@ -1,10 +1,11 @@
 // Server-only Solana logic: the challenge escrow. Never import this in client code.
 import "server-only";
 import { assertDevnet } from "./solana-network";
-import { buildWalletTransaction } from "./wallet-transaction";
+import { buildSimulatedTransaction } from "./wallet-simulation";
 import { allSignaturesValid } from "./transaction-signatures";
 import { kvGet, kvSet } from "./store";
 import {
+  ComputeBudgetProgram,
   Connection,
   Keypair,
   PublicKey,
@@ -109,20 +110,17 @@ export async function usdcBalance(owner: string): Promise<number> {
  */
 export async function prepareWithdraw(from: string, to: string, amountUsd: number) {
   await assertDevnet(connection);
-  const payer = sponsor();
-  const fromKey = new PublicKey(from);
+  const fromKey = new PublicKey(from), payer = { publicKey: fromKey }; // one signer: the runner pays the fee
   const toKey = new PublicKey(to);
   const toAta = usdcAccount(toKey);
   const raw = BigInt(Math.round(amountUsd * 10 ** USDC_DECIMALS));
   const lifetime = await connection.getLatestBlockhash('confirmed');
-  const tx = buildWalletTransaction(payer.publicKey, [
-    createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, toAta, toKey, mint),
+  const { tx, simulation } = await buildSimulatedTransaction(fromKey, [
+    createAssociatedTokenAccountIdempotentInstruction(fromKey, toAta, toKey, mint),
     createTransferCheckedInstruction(usdcAccount(fromKey), mint, toAta, fromKey, raw, USDC_DECIMALS),
     new TransactionInstruction({ programId: new PublicKey(MEMO_PROGRAM_ID), keys: [], data: Buffer.from("LockRun|cashout", "utf8") })
   ], lifetime.blockhash);
-  const simulation = await connection.simulateTransaction(tx, { commitment: 'confirmed', sigVerify: false });
   if (simulation.value.err) throw new Error("Withdrawal simulation failed.");
-  // Phantom must sign first. The sponsor signature is added only on authenticated submission.
   return Buffer.from(tx.serialize()).toString('base64');
 }
 
@@ -160,11 +158,9 @@ export async function submitStorePayment(base64Tx: string, expectedMessage: stri
 export async function submitWithdraw(base64Tx: string) {
   await assertDevnet(connection);
   const tx = VersionedTransaction.deserialize(Buffer.from(base64Tx, 'base64'));
-  const payer = sponsor();
-  if (!tx.message.staticAccountKeys[0].equals(payer.publicKey)) throw new Error('Unexpected withdrawal fee payer.');
-  const allowed = new Set([TOKEN_PROGRAM_ID.toBase58(), ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(), MEMO_PROGRAM_ID]);
+  if (tx.message.header.numRequiredSignatures !== 1) throw new Error('Unexpected withdrawal signers.');
+  const allowed = new Set([TOKEN_PROGRAM_ID.toBase58(), ASSOCIATED_TOKEN_PROGRAM_ID.toBase58(), MEMO_PROGRAM_ID, ComputeBudgetProgram.programId.toBase58()]);
   if (!TransactionMessage.decompile(tx.message).instructions.every(ix => allowed.has(ix.programId.toBase58()))) throw new Error('Unexpected withdrawal instruction.');
-  tx.sign([payer]);
   if (!allSignaturesValid(tx)) throw new Error('Missing withdrawal signature.');
   const signature = bs58.encode(tx.signatures[0]);
   const status = (await connection.getSignatureStatuses([signature], { searchTransactionHistory: true })).value[0];
