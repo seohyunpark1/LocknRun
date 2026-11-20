@@ -6,11 +6,12 @@ import { insertChallenge, listChallenges, newId } from "@/lib/store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 // GET /api/challenges -> all challenges + the escrow wallet's live USDC balance on Solana.
 export async function GET() {
   return NextResponse.json({
-    challenges: listChallenges(),
+    challenges: await listChallenges(),
     escrow: { address: escrowAddress(), balance: await escrowBalance() },
   });
 }
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
       status: "active",
       participants: [{ name, address: String(b.address), joinedAt: now, joinSig, runs: [] }],
     };
-    insertChallenge(c);
+    await insertChallenge(c);
     return NextResponse.json({ challenge: c });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Could not create challenge";

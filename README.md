@@ -127,11 +127,18 @@ Open http://localhost:3000 in two browser windows (one normal, one private) with
 "+250 m (demo mode)" button appears that adds 250 m at a 6:00/km pace, so you can show a full run on stage.
 Remove it with `?demo=0`. Use a **15 min** challenge so you can show the payout during the demo.
 
-**Testing GPS for real:** your phone needs HTTPS for location. Deploy to Render or Railway, or run
-`npx localtunnel --port 3000` and open the link on your phone.
+## Deploy to Vercel
 
-**Storage:** challenges are saved in `data/challenges.json` (money and receipts live on Solana). On Vercel the file
-lives in `/tmp` and can reset, so use Render/Railway or your laptop for the live demo.
+1. Go to https://vercel.com/new and import this GitHub repo (or run `npx vercel` inside the project folder).
+2. **Environment variables** (Project → Settings → Environment Variables): add `SPONSOR_SECRET_KEY`,
+   `ESCROW_SECRET_KEY`, and optionally `ELEVENLABS_API_KEY` and `NEXT_PUBLIC_SOLANA_RPC` (a QuickNode devnet URL is
+   faster than the public one).
+3. **Storage:** Project → Storage → create **Upstash for Redis** (free) and connect it to the project. This adds
+   `KV_REST_API_URL` and `KV_REST_API_TOKEN`, which Lock&Run uses to save challenges. Without it, challenges won't persist on Vercel.
+4. Redeploy. Your phone can now track runs with GPS, because Vercel serves the app over HTTPS.
+
+**Storage:** on Vercel, challenges are saved in Upstash Redis. Locally they're saved in `data/challenges.json`.
+Money and receipts always live on Solana.
 
 ## Project structure
 
@@ -144,6 +151,6 @@ app/api/challenges/[id]/route.ts Join (lock deposit) / log run / settle (pay out
 app/api/voice/route.ts          ElevenLabs text-to-speech
 lib/settle.ts                   Pot-splitting rules
 lib/solana-server.ts            Escrow transfers on Solana
-lib/store.ts                    Challenge storage (JSON file)
+lib/store.ts                    Challenge storage (Upstash Redis on Vercel, JSON file locally)
 scripts/setup-wallets.mjs       Creates the sponsor + escrow wallets
 ```
